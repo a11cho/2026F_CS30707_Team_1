@@ -246,7 +246,7 @@ def write_markdown(root,final_root,data,paired):
     sections=[]
     def add(text): sections.append(text.strip())
     def image(name,caption):
-        add(f"![{caption}](<{(final_root/'figures'/name).as_posix()}>)\n\n{caption}")
+        add(f"![{caption}](<figures/{name}>)\n\n{caption}")
     def case_label(case): return LABELS[case["selected"]["condition"]]+" / "+NAMES[case["selected"]["algorithm"]]
     add("# 양 팀 동시 학습 MC / SARSA(0) 스모크테스트 보고서\n\n**실행 ID:** `20261031T112320430780Z` · **원본 실행일:** 2026-10-31 · **학습 seed:** 7, 19, 31\n\n이 문서는 학습을 다시 수행하지 않고 원본 로그·최종 체크포인트·추가 추론으로 작성했습니다. 그래프는 300dpi PNG와 편집 가능한 SVG로 함께 제공하며, 그래프 데이터와 생성 코드도 동봉했습니다.")
     add("## 초록")
@@ -381,8 +381,8 @@ Q(x_t,a_t)\leftarrow Q(x_t,a_t)+\alpha\big[r_{t+1}+\gamma Q(x_{t+1},a_{t+1})-Q(x
     add("메모리의 약 1.24GiB peak는 80에피소드 소규모 속도 검사 때의 수십 MiB와 다른 예산의 실측이다. 반복 횟수·key 수 증가와 직렬화 비용을 함께 고려해야 한다. 실행 중 다른 작업·전원 상태·CPU 스케줄링을 통제하지 않았고 조건을 무작위 순서로 실행하지 않았으므로, 조건별 벽시계 차이를 알고리즘 속도 우열로 해석하지 않는다.")
     add("## 8. 최종 모델 관전 영상")
     add("영상은 기존 viewer.py의 **ModelSimulation 추론 엔진**으로 만든 동일한 상태 전이의 시각화다. Tk 창을 녹화한 것이 아니라 headless 추론 상태를 영상으로 렌더링했다. 모델 업데이트·checkpoint 변경은 없으며 각 장면은 최종 체크포인트의 양 팀 대결이다. 환경 seed=7, 정책 seed=1247478191, epsilon=0, 64틱으로 고정했다. seed를 바꿔 좋은 장면을 고르지 않았다. 이는 한 장면의 정성 자료이며 고정 상대 test 결과나 중간 학습 모델을 보여주는 것은 아니다.")
-    add(f"### 네 조건 SARSA(0) 동시 관전\n\n![네 조건 SARSA 관전](<{(final_root/'videos/sarsa_four_conditions.gif').as_posix()}>)\n\n같은 초기 상태에서 개인/local, 팀 종료/local, 개인/aware, 팀 종료/aware의 선택 SARSA 모델을 나란히 보여준다. 금색 테두리는 직전 틱 공격 목표다. [영상 파일 AVI](videos/sarsa_four_conditions.avi)")
-    add(f"### 개인·local MC와 SARSA 비교\n\n![개인 local MC SARSA 관전](<{(final_root/'videos/local_individual_mc_sarsa.gif').as_posix()}>)\n\nMC seed=19와 SARSA seed=31의 각 양 팀 모델 대결이다. 서로 알고리즘을 맞붙인 cross-play가 아니다. [영상 파일 AVI](videos/local_individual_mc_sarsa.avi)")
+    add(f"### 네 조건 SARSA(0) 동시 관전\n\n![네 조건 SARSA 관전](<videos/sarsa_four_conditions.gif>)\n\n같은 초기 상태에서 개인/local, 팀 종료/local, 개인/aware, 팀 종료/aware의 선택 SARSA 모델을 나란히 보여준다. 금색 테두리는 직전 틱 공격 목표다. [영상 파일 AVI](videos/sarsa_four_conditions.avi)")
+    add(f"### 개인·local MC와 SARSA 비교\n\n![개인 local MC SARSA 관전](<videos/local_individual_mc_sarsa.gif>)\n\nMC seed=19와 SARSA seed=31의 각 양 팀 모델 대결이다. 서로 알고리즘을 맞붙인 cross-play가 아니다. [영상 파일 AVI](videos/local_individual_mc_sarsa.avi)")
     add("AVI는 로컬 재생용 MJPEG이며 GIF는 문서 내 미리보기용이다. 영상과 trace의 모델 seed·추론 seed·checkpoint SHA256은 videos/video_manifest.json과 data/simulation_traces.json에 기록했다. 화면의 전체 맵 정보는 관전자용이며 정책에는 원래 local/aware 관측만 전달됐다.")
     add("## 9. 해석과 다음 토의")
     add("1. **학습 가능한 경로는 확인됐다.** 개인·local에서 validation과 별도 test의 개선이 함께 나타났고, 관측 재방문률도 높아졌다. 다만 최고 seed 선택 후의 결과이며 최적 정책이나 보편적 수렴의 증거는 아니다.\n2. **숫자만 늘려도 모든 조건이 학습되지는 않았다.** aware의 조합적 key 증가와 terminal 보상의 긴 가치 전파는 남아 있다. 다음 예산을 늘리기 전 이 표현이 주는 정보와 재사용 비용을 함께 토의할 필요가 있다.\n3. **개인/팀 비교에는 목적·보상 시점 차이가 있다.** 팀 terminal의 낮은 성적은 팀 보상 자체가 나쁘다는 결론이 아니다.\n4. **자기대전과 고정 상대 일반화를 분리해야 한다.** 학습 중 상대도 바뀌어 Q 변화가 지속될 수 있으며, 배우지 않은 scripted 전략에는 취약할 수 있다.\n5. **모든 학습 seed의 test가 필요하다.** 다음 연구 결론에는 seed 3개 모두의 test와 훈련 변동을 포함하는 분석을 추가하는 것이 좋다. 이번 test는 이미 확인했으므로 다음 하이퍼파라미터 수정 뒤의 최종 검증에는 새 hold-out bank가 필요하다.\n6. **방문 통계의 분해가 도움이 된다.** 사망 NOOP와 생존 상태를 나눈 재방문률, 공격·이동·정지 빈도와 사망 원인, 상황별 replay를 추가하면 행동 양상을 더 구체적으로 설명할 수 있다.")

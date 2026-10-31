@@ -78,13 +78,13 @@ Q(x_t,a_t)\leftarrow Q(x_t,a_t)+\alpha\big[r_{t+1}+\gamma Q(x_{t+1},a_{t+1})-Q(x
 
 ## 3. 학습 iteration별 성능과 보상 추이
 
-![그림 1. 0,100,…,1000에피소드의 고정 validation 진단 점수. 얇은 선은 seed별 곡선, 굵은 선은 평균, 음영은 ±1 표본 SD(n=3)이다. 점수는 승 1·무 0.5의 평균이다. 진단은 32경기로, 최종 validation 160경기와 seed 범위가 다르다. 따라서 초기 진단 기준선 6.25%와 최종 기준선 18.125%를 같은 평가값으로 연결하지 않는다.](<C:/Users/dohyu/Desktop/B_KAIST/102_강의(26Fall)/14. 강화개/2026F_CS30707_Team_1/smoke_test_mc_td/paper_report/figures/fig01_learning_curves.png>)
+![그림 1. 0,100,…,1000에피소드의 고정 validation 진단 점수. 얇은 선은 seed별 곡선, 굵은 선은 평균, 음영은 ±1 표본 SD(n=3)이다. 점수는 승 1·무 0.5의 평균이다. 진단은 32경기로, 최종 validation 160경기와 seed 범위가 다르다. 따라서 초기 진단 기준선 6.25%와 최종 기준선 18.125%를 같은 평가값으로 연결하지 않는다.](<figures/fig01_learning_curves.png>)
 
 그림 1. 0,100,…,1000에피소드의 고정 validation 진단 점수. 얇은 선은 seed별 곡선, 굵은 선은 평균, 음영은 ±1 표본 SD(n=3)이다. 점수는 승 1·무 0.5의 평균이다. 진단은 32경기로, 최종 validation 160경기와 seed 범위가 다르다. 따라서 초기 진단 기준선 6.25%와 최종 기준선 18.125%를 같은 평가값으로 연결하지 않는다.
 
 **중간 checkpoint의 의미:** 저장된 것은 시점별 진단 통계이며 매 100에피소드의 모델 가중치 파일은 보존하지 않았다. 그림 1은 당시 실제 측정값으로 복원한 곡선이다. 중간 최고 모델을 다시 로드하거나 그 시점의 영상을 만드는 것은 이 자료만으로 불가능하다. 최종 model.json.gz만 관전할 수 있다.
 
-![그림 8. 자기대전 중 첫 모델 묶음(role 0–2)의 에이전트당 비할인 보상. 50개 비중첩 에피소드 구간 평균과 seed 간 ±1 SD. 두 팀 보상을 합치면 terminal 조건에서 상쇄되므로 첫 묶음만 사용했다. 학습 상대와 epsilon도 함께 바뀌므로 이 곡선만으로 실력 향상이나 수렴을 판단하지 않는다.](<C:/Users/dohyu/Desktop/B_KAIST/102_강의(26Fall)/14. 강화개/2026F_CS30707_Team_1/smoke_test_mc_td/paper_report/figures/fig08_training_returns.png>)
+![그림 8. 자기대전 중 첫 모델 묶음(role 0–2)의 에이전트당 비할인 보상. 50개 비중첩 에피소드 구간 평균과 seed 간 ±1 SD. 두 팀 보상을 합치면 terminal 조건에서 상쇄되므로 첫 묶음만 사용했다. 학습 상대와 epsilon도 함께 바뀌므로 이 곡선만으로 실력 향상이나 수렴을 판단하지 않는다.](<figures/fig08_training_returns.png>)
 
 그림 8. 자기대전 중 첫 모델 묶음(role 0–2)의 에이전트당 비할인 보상. 50개 비중첩 에피소드 구간 평균과 seed 간 ±1 SD. 두 팀 보상을 합치면 terminal 조건에서 상쇄되므로 첫 묶음만 사용했다. 학습 상대와 epsilon도 함께 바뀌므로 이 곡선만으로 실력 향상이나 수렴을 판단하지 않는다.
 
@@ -103,11 +103,11 @@ Q(x_t,a_t)\leftarrow Q(x_t,a_t)+\alpha\big[r_{t+1}+\gamma Q(x_{t+1},a_{t+1})-Q(x
 
 같은 test seed에서 추가 추론한 학습 전 Q=0 기준선은 **14.17%**이다. 이 기준선의 모델은 팀원 셋 모두 무작위 선택하며, 이전 실행처럼 scripted 아군 두 명의 지원이 없다. 최종 test는 seed 평균이 아니라 validation으로 선정된 한 개의 6모델 묶음에 대한 성적이다.
 
-![그림 2. 왼쪽은 전체 학습 seed 3개의 최종 validation 평균±SD, 오른쪽은 선정 모델의 test 점수다. 서로 다른 통계량이므로 좌우 막대 차이를 과적합 정도의 직접 추정치로 해석하지 않는다.](<C:/Users/dohyu/Desktop/B_KAIST/102_강의(26Fall)/14. 강화개/2026F_CS30707_Team_1/smoke_test_mc_td/paper_report/figures/fig02_final_performance.png>)
+![그림 2. 왼쪽은 전체 학습 seed 3개의 최종 validation 평균±SD, 오른쪽은 선정 모델의 test 점수다. 서로 다른 통계량이므로 좌우 막대 차이를 과적합 정도의 직접 추정치로 해석하지 않는다.](<figures/fig02_final_performance.png>)
 
 그림 2. 왼쪽은 전체 학습 seed 3개의 최종 validation 평균±SD, 오른쪽은 선정 모델의 test 점수다. 서로 다른 통계량이므로 좌우 막대 차이를 과적합 정도의 직접 추정치로 해석하지 않는다.
 
-![그림 3. 각 선택 모델과 Q=0 기준선의 대응 test 점수 차이. 환경 pair 30개를 블록으로 묶어 두 팀 묶음·상대·진영을 함께 재표집했다(bootstrap 10,000회, 통계 seed=20261031, percentile 95% 구간). 모델과 기준선에 같은 재표집 인덱스를 사용했다.](<C:/Users/dohyu/Desktop/B_KAIST/102_강의(26Fall)/14. 강화개/2026F_CS30707_Team_1/smoke_test_mc_td/paper_report/figures/fig03_paired_test_differences.png>)
+![그림 3. 각 선택 모델과 Q=0 기준선의 대응 test 점수 차이. 환경 pair 30개를 블록으로 묶어 두 팀 묶음·상대·진영을 함께 재표집했다(bootstrap 10,000회, 통계 seed=20261031, percentile 95% 구간). 모델과 기준선에 같은 재표집 인덱스를 사용했다.](<figures/fig03_paired_test_differences.png>)
 
 그림 3. 각 선택 모델과 Q=0 기준선의 대응 test 점수 차이. 환경 pair 30개를 블록으로 묶어 두 팀 묶음·상대·진영을 함께 재표집했다(bootstrap 10,000회, 통계 seed=20261031, percentile 95% 구간). 모델과 기준선에 같은 재표집 인덱스를 사용했다.
 
@@ -126,7 +126,7 @@ Q(x_t,a_t)\leftarrow Q(x_t,a_t)+\alpha\big[r_{t+1}+\gamma Q(x_{t+1},a_{t+1})-Q(x
 
 ## 5. 표현 크기·반복 경험·Q 안정화
 
-![그림 4. 같은 경험 예산에서 저장 key 수와 상태·행동 쌍 평균 방문 수. 여섯 독립 테이블의 개수를 합산했다. mean_pair_visits에는 사망 대기 NOOP도 포함되어 생존 전술 상태의 재방문률과 같지 않다.](<C:/Users/dohyu/Desktop/B_KAIST/102_강의(26Fall)/14. 강화개/2026F_CS30707_Team_1/smoke_test_mc_td/paper_report/figures/fig04_state_reuse.png>)
+![그림 4. 같은 경험 예산에서 저장 key 수와 상태·행동 쌍 평균 방문 수. 여섯 독립 테이블의 개수를 합산했다. mean_pair_visits에는 사망 대기 NOOP도 포함되어 생존 전술 상태의 재방문률과 같지 않다.](<figures/fig04_state_reuse.png>)
 
 그림 4. 같은 경험 예산에서 저장 key 수와 상태·행동 쌍 평균 방문 수. 여섯 독립 테이블의 개수를 합산했다. mean_pair_visits에는 사망 대기 NOOP도 포함되어 생존 전술 상태의 재방문률과 같지 않다.
 
@@ -143,7 +143,7 @@ Q(x_t,a_t)\leftarrow Q(x_t,a_t)+\alpha\big[r_{t+1}+\gamma Q(x_{t+1},a_{t+1})-Q(x
 
 Q 스칼라 수는 저장된 key 수 × 9이며 신경망의 파라미터 수가 아니다. 불법 행동의 0값도 포함한다. 0이 아닌 Q가 많다는 것이 좋은 행동을 구별했다는 뜻은 아니다. 이번 local 개인 조건은 높은 재방문률과 성능 개선이 함께 나타났지만, aware는 정보가 추가되면서 상태 표현이 세분화되어 새 key가 계속 증가했다. 이는 정보 공유 자체가 나쁘다는 증거가 아니라 **현재 표 기반 표현·예산에서 정보를 재사용하기 어렵다**는 진단이다.
 
-![그림 5. 굵은 실선은 구간당 평균 1회 Q 업데이트 절댓값, 점선은 첫 에피소드의 고정 key에서 본 구간 간 Q 변화다. probe key는 seed·모델마다 별도로 선정되어 seed 사이에 동일한 집합은 아니며, 각 실행 안에서만 고정된다. 첫 구간 probe는 Q=0과 비교한다. MC의 타깃 오차와 SARSA TD error는 의미가 다르며 보상 스케일도 달라 크기로 우열을 비교하지 않는다. 로그 축의 10⁻⁸ 표시는 실제 0을 표시하기 위한 바닥값이다.](<C:/Users/dohyu/Desktop/B_KAIST/102_강의(26Fall)/14. 강화개/2026F_CS30707_Team_1/smoke_test_mc_td/paper_report/figures/fig05_q_diagnostics.png>)
+![그림 5. 굵은 실선은 구간당 평균 1회 Q 업데이트 절댓값, 점선은 첫 에피소드의 고정 key에서 본 구간 간 Q 변화다. probe key는 seed·모델마다 별도로 선정되어 seed 사이에 동일한 집합은 아니며, 각 실행 안에서만 고정된다. 첫 구간 probe는 Q=0과 비교한다. MC의 타깃 오차와 SARSA TD error는 의미가 다르며 보상 스케일도 달라 크기로 우열을 비교하지 않는다. 로그 축의 10⁻⁸ 표시는 실제 0을 표시하기 위한 바닥값이다.](<figures/fig05_q_diagnostics.png>)
 
 그림 5. 굵은 실선은 구간당 평균 1회 Q 업데이트 절댓값, 점선은 첫 에피소드의 고정 key에서 본 구간 간 Q 변화다. probe key는 seed·모델마다 별도로 선정되어 seed 사이에 동일한 집합은 아니며, 각 실행 안에서만 고정된다. 첫 구간 probe는 Q=0과 비교한다. MC의 타깃 오차와 SARSA TD error는 의미가 다르며 보상 스케일도 달라 크기로 우열을 비교하지 않는다. 로그 축의 10⁻⁸ 표시는 실제 0을 표시하기 위한 바닥값이다.
 
@@ -151,7 +151,7 @@ Q 스칼라 수는 저장된 key 수 × 9이며 신경망의 파라미터 수가
 
 ## 6. 고정 상대 일반화와 학습된 두 팀의 차이
 
-![그림 6. 왼쪽은 선택 모델의 상대별 점수(상대당 120경기), 오른쪽은 독립적으로 학습된 두 팀 묶음의 성적이다. 묶음 0과 1은 서로 다른 Q-table 세 개씩을 사용하며 양쪽 진영으로 평가했다. 평균 점수만으로 한 팀의 약한 성적이 가려질 수 있어 따로 표시했다.](<C:/Users/dohyu/Desktop/B_KAIST/102_강의(26Fall)/14. 강화개/2026F_CS30707_Team_1/smoke_test_mc_td/paper_report/figures/fig06_opponents_and_cohorts.png>)
+![그림 6. 왼쪽은 선택 모델의 상대별 점수(상대당 120경기), 오른쪽은 독립적으로 학습된 두 팀 묶음의 성적이다. 묶음 0과 1은 서로 다른 Q-table 세 개씩을 사용하며 양쪽 진영으로 평가했다. 평균 점수만으로 한 팀의 약한 성적이 가려질 수 있어 따로 표시했다.](<figures/fig06_opponents_and_cohorts.png>)
 
 그림 6. 왼쪽은 선택 모델의 상대별 점수(상대당 120경기), 오른쪽은 독립적으로 학습된 두 팀 묶음의 성적이다. 묶음 0과 1은 서로 다른 Q-table 세 개씩을 사용하며 양쪽 진영으로 평가했다. 평균 점수만으로 한 팀의 약한 성적이 가려질 수 있어 따로 표시했다.
 
@@ -188,7 +188,7 @@ Q 스칼라 수는 저장된 key 수 × 9이며 신경망의 파라미터 수가
 | 전체 CPU초/경과초 | 89.0% (1코어 기준); 논리 8코어 전체 대비 약 11.1% 환산 |
 | 추가 분석·영상 시간 | 위 63분에 포함하지 않음; 기존 학습 종료 이후 별도로 수행 |
 
-![그림 7. 실제 순차 실행에서 기록한 phase 시간과 메모리. 최대 메모리는 모델 학습뿐 아니라 큰 Q-table 직렬화·로드 중에도 발생할 수 있다. working set은 실제 상주 페이지이며 private commit은 같은 뜻이 아니다. phase 번호는 시간 간격을 의미하지 않는다.](<C:/Users/dohyu/Desktop/B_KAIST/102_강의(26Fall)/14. 강화개/2026F_CS30707_Team_1/smoke_test_mc_td/paper_report/figures/fig07_resources.png>)
+![그림 7. 실제 순차 실행에서 기록한 phase 시간과 메모리. 최대 메모리는 모델 학습뿐 아니라 큰 Q-table 직렬화·로드 중에도 발생할 수 있다. working set은 실제 상주 페이지이며 private commit은 같은 뜻이 아니다. phase 번호는 시간 간격을 의미하지 않는다.](<figures/fig07_resources.png>)
 
 그림 7. 실제 순차 실행에서 기록한 phase 시간과 메모리. 최대 메모리는 모델 학습뿐 아니라 큰 Q-table 직렬화·로드 중에도 발생할 수 있다. working set은 실제 상주 페이지이며 private commit은 같은 뜻이 아니다. phase 번호는 시간 간격을 의미하지 않는다.
 
@@ -200,13 +200,13 @@ Q 스칼라 수는 저장된 key 수 × 9이며 신경망의 파라미터 수가
 
 ### 네 조건 SARSA(0) 동시 관전
 
-![네 조건 SARSA 관전](<C:/Users/dohyu/Desktop/B_KAIST/102_강의(26Fall)/14. 강화개/2026F_CS30707_Team_1/smoke_test_mc_td/paper_report/videos/sarsa_four_conditions.gif>)
+![네 조건 SARSA 관전](<videos/sarsa_four_conditions.gif>)
 
 같은 초기 상태에서 개인/local, 팀 종료/local, 개인/aware, 팀 종료/aware의 선택 SARSA 모델을 나란히 보여준다. 금색 테두리는 직전 틱 공격 목표다. [영상 파일 AVI](videos/sarsa_four_conditions.avi)
 
 ### 개인·local MC와 SARSA 비교
 
-![개인 local MC SARSA 관전](<C:/Users/dohyu/Desktop/B_KAIST/102_강의(26Fall)/14. 강화개/2026F_CS30707_Team_1/smoke_test_mc_td/paper_report/videos/local_individual_mc_sarsa.gif>)
+![개인 local MC SARSA 관전](<videos/local_individual_mc_sarsa.gif>)
 
 MC seed=19와 SARSA seed=31의 각 양 팀 모델 대결이다. 서로 알고리즘을 맞붙인 cross-play가 아니다. [영상 파일 AVI](videos/local_individual_mc_sarsa.avi)
 

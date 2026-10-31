@@ -14,8 +14,8 @@
   "validation": "글꼴·그래프 육안 검사, 표 열 수·수치·원본 해시·GIF 기간·AVI 프레임과 인덱스 검사 통과",
   "files": {
     "build_paper_report.py": {
-      "bytes": 42986,
-      "sha256": "7610215c22311b316ca53966d0b03c273bd16ec4f93b6fc9e19acadff2212637"
+      "bytes": 43343,
+      "sha256": "5c434ce2a17b0d7be470043804b61151d7318620626f1a882527394edf933de1"
     },
     "prepare_paper_data.py": {
       "bytes": 9251,
@@ -26,8 +26,8 @@
       "sha256": "4075f9414ab31446eedeb69183fc610bb84a7c0509f0cab6709bf758cc8698bb"
     },
     "REPORT.md": {
-      "bytes": 30075,
-      "sha256": "038a4e8a603a590a3a308226f150442994f5a19075f9b5dc1cebc11bf91b8d63"
+      "bytes": 28925,
+      "sha256": "ec401ef5d3f006e49642338534908e1b79b524e2f36b842e4945a2bf6218a941"
     },
     "data\\diagnostics_long.csv": {
       "bytes": 84358,
@@ -151,5 +151,13 @@
       "build_paper_report.py"
     ],
     "figures_and_videos_unchanged": true
-  }
+  },
+  "maintenance_events": [
+    {
+      "date": "2026-10-31T15:12:13.503032+00:00",
+      "description": "보고서 이미지·GIF를 상대경로로 변경하고 생성 코드에도 반영했습니다. AVI 링크는 기존 상대경로를 유지했습니다.",
+      "verified_media_links": 12,
+      "media_files_modified": false
+    }
+  ]
 }
