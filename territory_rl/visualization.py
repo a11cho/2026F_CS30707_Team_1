@@ -5,6 +5,9 @@ AGENT_COLORS = ((255, 115, 135), (102, 192, 255))
 
 
 def render_rgb(snapshot, tile_size=24):
+    """스냅샷을 (높이×tile_size, 너비×tile_size, 3) uint8 RGB 이미지로 반환한다.
+    팀 소유 타일·격자·생존 에이전트만 그리며 창을 만들거나 게임 상태/RNG를 변경하지 않는다.
+    """
     h, w = snapshot.owner.shape
     image = np.zeros((h*tile_size, w*tile_size, 3), dtype=np.uint8)
     for r in range(h):
@@ -23,6 +26,9 @@ def render_rgb(snapshot, tile_size=24):
 class TkRenderer:
     """Snapshot-only renderer. Tk is imported only when a human window is requested."""
     def __init__(self, root=None, tile_size=36):
+        """전달된 Tk root 또는 새 창에 타일맵 Canvas를 생성한다.
+        GUI 없는 실행에서 Tk를 불러오지 않도록 생성자 내부에서만 tkinter를 import한다.
+        """
         import tkinter as tk
         self.root = root or tk.Tk()
         self.root.title("Territory Control | Function Test")
@@ -32,6 +38,9 @@ class TkRenderer:
         self.canvas.pack(side="left", padx=14, pady=14)
 
     def draw(self, snapshot, selected=None):
+        """스냅샷의 타일과 생존 에이전트를 Canvas에 다시 그린다.
+        selected ID는 흰 테두리로 강조한다. 화면만 갱신하며 행동 제출이나 게임 전이는 수행하지 않는다.
+        """
         size = self.tile_size
         h, w = snapshot.owner.shape
         self.canvas.configure(width=w*size, height=h*size)
@@ -52,6 +61,7 @@ class TkRenderer:
                                         fill="#141925", font=("Consolas", 12, "bold"))
 
     def close(self):
+        """사용 중인 Tk 창을 닫는다. 이미 파괴된 창의 TclError만 무시하며 다른 오류는 다시 전달한다."""
         try:
             self.root.destroy()
         except Exception as exc:

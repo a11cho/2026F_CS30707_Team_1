@@ -17,12 +17,19 @@ class TerritoryEnvironment:
     """Owns game state. All mutations occur in reset/step; no wall-clock logic."""
 
     def __init__(self, config=None, experiment=None):
+        """게임/실험 설정과 에피소드 식별자를 준비한다. 실제 맵·에이전트는 reset에서 생성한다."""
         self.config = config or GameConfig()
         self.experiment = experiment or ExperimentConfig()
         self.episode_id = 0
         self._initialized = False
 
     def reset(self, seed=None, options=None):
+        """새 에피소드 상태와 환경 전용 RNG를 만들고 초기 StateSnapshot을 반환한다.
+
+        seed가 같으면 초기 배치와 이후 동일 행동열에 따른 무작위 부활을 재현할 수 있다.
+        options에는 테스트용 owner, agents, tick을 지정할 수 있으며 다른 키는 거부한다.
+        사용자 상태는 검증·복사한 뒤 반영하고 episode_id를 늘려 기존 세션을 무효화한다.
+        """
         options = dict(options or {})
         if set(options) - {"owner", "agents", "tick"}:
             raise ValueError("unsupported scenario option")
@@ -57,6 +64,12 @@ class TerritoryEnvironment:
 
     @staticmethod
     def _validate_state(tile_map, agents, tick):
+        """에이전트 ID·팀·좌표·공격/부활 시점의 상태 불변식을 검사한다.
+
+        생존자는 중복 없는 아군 타일에 있어야 하며, 사망자는 부활 예정 틱이 있어야 한다.
+        위반 시 ValueError를 발생시킨다. 검사 과정에서 전달된 상태의 행동과 좌표를
+        각각 Action과 정수 튜플로 정규화하므로 완전한 읽기 전용 함수는 아니다.
+        """
         if set(agents) != set(AGENT_IDS):
             raise ValueError("expected red_0..2 and blue_0..2")
         seen = set()
@@ -82,10 +95,15 @@ class TerritoryEnvironment:
                 raise ValueError("dead agents require a nonnegative respawn_at")
 
     def _require_reset(self):
+        """reset이 한 번도 실행되지 않았다면 RuntimeError를 발생시킨다."""
         if not self._initialized:
             raise RuntimeError("call reset before accessing the environment")
 
     def snapshot(self):
+        """화면·기록용 전역 상태를 내부 저장소와 분리된 스냅샷으로 반환한다.
+        소유권 배열은 복사한 뒤 쓰기를 막고, 에이전트는 변경 불가능한 값 객체로 변환한다.
+        틱과 RNG는 진행시키지 않는다.
+        """
         self._require_reset()
         owner = self._map.owner.copy()
         owner.flags.writeable = False
@@ -93,6 +111,12 @@ class TerritoryEnvironment:
                              self.tick, self.config.max_ticks, self._map.areas(), self.terminated)
 
     def action_mask(self, aid):
+        """aid가 다음 틱에 제출할 수 있는 행동을 길이 9의 int8 배열로 반환한다.
+
+        정지(0)는 항상 허용하며 사망 또는 경기 종료 상태에서는 정지만 남긴다.
+        경계와 본인 공격 cooldown만 검사한다. 점유 칸·적 타일도 같은 틱에
+        비워지거나 아군이 점령할 수 있으므로 그 이유만으로 이동을 차단하지 않는다.
+        """
         self._require_reset()
         a = self._agents[aid]
         mask = np.zeros(9, dtype=np.int8)
@@ -104,10 +128,20 @@ class TerritoryEnvironment:
         return mask
 
     def observe(self, aid):
+        """aid에게 허용된 local/aware 관측 사전을 새로 만들어 반환한다.
+        전역 스냅샷은 관측 생성 내부에서만 사용하며 호출 자체는 틱이나 RNG를 바꾸지 않는다.
+        """
         from .observation import build_observation
         return build_observation(self.snapshot(), aid, self.config, self.experiment, self.action_mask(aid))
 
     def step(self, actions):
+        """ID별 행동 사전을 받아 정확히 한 틱을 진행하고 StepResult를 반환한다.
+
+        미제출은 정지로 채운다. 잘못된 ID·행동값은 상태 변경 전에 오류로 알리고,
+        범위 안이지만 mask로 금지된 행동은 정지로 바꿔 거부 이벤트를 남긴다.
+        공격 집계/반영 → 공격 후 사망 → 동시 이동 → 이동 후 사망 → 부활 → 보상 순서다.
+        종료 틱에는 부활을 생략한다. 종료 이후 호출하려면 먼저 reset해야 한다.
+        """
         self._require_reset()
         if self.terminated:
             raise RuntimeError("episode is over; call reset")
@@ -136,6 +170,10 @@ class TerritoryEnvironment:
                 self._map.owner[event.position] = event.new_owner
 
         def kill_exposed(phase):
+            """현재 타일이 적 소유인 생존자를 사망 처리하고 부활 예정 틱을 기록한다.
+            phase는 attack 또는 movement로, 사건의 사망 원인 단계를 구별한다.
+            공격 직후 사망이면 예약된 이동도 취소하며 위치를 None으로 바꿔 즉시 점유를 해제한다.
+            """
             for aid in AGENT_IDS:
                 a = self._agents[aid]
                 if a.alive and self._map.owner[a.position] != a.team:

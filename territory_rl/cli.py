@@ -11,6 +11,10 @@ from .models import AGENT_IDS
 
 
 def replay(path):
+    """JSONL의 reset 설정과 행동열을 다시 실행해 저장된 결과와 정확히 일치하는지 검사한다.
+    이벤트·면적·보상 등 어느 필드라도 다르면 해당 틱의 ValueError를 발생시킨다.
+    성공 시 검증한 전이 수를 출력한다. 모델 학습이나 정책 갱신은 수행하지 않는다.
+    """
     env = None
     count = 0
     for line in Path(path).read_text(encoding="utf-8").splitlines():
@@ -30,6 +34,12 @@ def replay(path):
 
 
 def main(argv=None):
+    """명령행 옵션을 해석해 keyboard·headless·replay 중 선택한 실행 모드를 시작한다.
+
+    argv가 None이면 프로세스 인자를 사용한다. headless는 random/scripted 컨트롤러로
+    경기를 실행하고 지표를 출력하며, --log 지정 시 행동 재생용 JSONL을 기록한다.
+    keyboard 모드에서만 GUI를 불러온다. 어떤 모드도 학습을 실행하지 않는다.
+    """
     parser = argparse.ArgumentParser(description="Territory Control functional test runner")
     parser.add_argument("--mode", choices=["keyboard", "headless", "replay"], default="keyboard")
     parser.add_argument("--height", type=int, default=12)

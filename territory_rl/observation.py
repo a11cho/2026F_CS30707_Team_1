@@ -3,6 +3,13 @@ from .models import AGENT_IDS
 
 
 def build_observation(snapshot, aid, config, experiment, action_mask):
+    """스냅샷에서 aid의 관측 사전을 생성하고 내부 상태와 독립적인 배열들을 반환한다.
+
+    지역 격자의 6개 채널은 아군 땅·적 땅·경계 밖·본인·보이는 아군·보이는 적이다.
+    자기 상태는 정규화된 좌표·생존·공격 가능·부활 대기·남은 시간으로 구성한다.
+    aware에서만 두 팀원의 상태와 직전 완료 행동을 제공하며 local의 추가 팀원 정보는 0이다.
+    사망자의 지역 격자는 0으로 채운다. 현재 틱의 미완료 제출 행동은 참조하지 않는다.
+    """
     states = {a.agent_id: a for a in snapshot.agents}
     me = states[aid]
     r = config.observation_radius
@@ -24,6 +31,9 @@ def build_observation(snapshot, aid, config, experiment, action_mask):
                     grid[channel, y, x] = 1
 
     def fields(a):
+        """에이전트 a를 [정규화 행, 정규화 열, 생존, 공격 가능, 부활 대기 비율]로 변환한다.
+        사망자의 좌표는 0으로 채우므로 사용자는 생존/유효 mask를 함께 해석해야 한다.
+        """
         position = (0, 0) if not a.alive else (a.position[0] / (config.height-1), a.position[1] / (config.width-1))
         wait = 0 if a.respawn_at is None else max(0, a.respawn_at - snapshot.tick) / max(1, config.respawn_delay)
         return [*position, float(a.alive), float(a.alive and snapshot.tick + 1 - a.last_attack_tick >= 2), min(1., wait)]

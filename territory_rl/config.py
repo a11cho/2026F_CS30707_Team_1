@@ -13,6 +13,9 @@ class GameConfig:
     rules_version: str = "territory_v0"
 
     def __post_init__(self):
+        """생성 직후 맵 크기·시간·시야·초기 배치·규칙 버전을 검증한다.
+        잘못된 설정은 게임 시작 전에 ValueError로 알리며 기본값으로 임의 보정하지 않는다.
+        """
         for name in ("height", "width", "max_ticks", "respawn_delay", "observation_radius"):
             if type(getattr(self, name)) is not int:
                 raise ValueError(f"{name} must be an integer")
@@ -34,6 +37,9 @@ class ExperimentConfig:
     terminal_bonus: float = 1.0
 
     def __post_init__(self):
+        """관측/보상 모드와 종료 보상 계수의 유효성을 검증한다.
+        지원하지 않는 모드 또는 음수·무한대·NaN 계수이면 ValueError를 발생시킨다.
+        """
         if self.observation_mode not in ("local", "aware"):
             raise ValueError("observation_mode must be local or aware")
         if self.reward_mode not in ("individual", "team"):

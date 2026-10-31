@@ -4,7 +4,13 @@ from .events import Event
 
 
 def respawn_due_agents(agents, owner, tick, rng):
-    """Oldest due time first; seeded tie breaking and sampling without replacement."""
+    """부활 예정 틱이 지난 사망자를 빈 아군 타일에 배치하고 관련 이벤트를 반환한다.
+
+    agents의 위치·부활 예정 틱을 직접 갱신하고 전달받은 환경 RNG를 소비한다.
+    오래 기다린 순서를 우선하며 예정 틱이 같으면 시드 기반 추첨으로 순서를 정한다.
+    후보 타일은 중복 없이 선택한다. 빈 아군 칸이 없으면 예정 틱을 유지한 채 계속 대기한다.
+    호출자는 종료 틱에서 이 함수를 생략해야 한다.
+    """
     occupied = {a.position for a in agents.values() if a.alive}
     events = []
     for team in (0, 1):

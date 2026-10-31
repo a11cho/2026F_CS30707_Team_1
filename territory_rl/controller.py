@@ -5,31 +5,44 @@ from .models import Action
 
 
 class AgentController(Protocol):
-    def act(self, observation: dict) -> Action: ...
+    def act(self, observation: dict) -> Action:
+        """관측 사전에서 한 개의 행동을 선택하는 컨트롤러 계약이다. 환경의 틱을 직접 진행하지 않는다."""
+        ...
 
 
 class NoopController:
     def act(self, observation):
+        """관측 내용에 관계없이 정지 행동을 반환한다. 다른 규칙을 고립시켜 테스트할 때 사용한다."""
         return Action.NOOP
 
 
 class RandomController:
     def __init__(self, seed=None):
+        """정책 선택 전용 RNG를 seed로 초기화해 환경의 부활 난수와 분리한다."""
         self.rng = np.random.default_rng(seed)
 
     def act(self, observation):
+        """관측의 action_mask가 허용한 행동 중 하나를 균등하게 뽑아 반환한다. 정책 RNG만 소비한다."""
         return Action(int(self.rng.choice(np.flatnonzero(observation["action_mask"]))))
 
 
 class FrontierController(RandomController):
     """Local-only baseline: capture adjacent cells, otherwise path to visible frontier."""
     def __init__(self, seed=None, style="expand"):
+        """전용 RNG와 확장·공격·방어 중 scripted 행동 스타일을 준비한다. 미지원 스타일은 오류다."""
         super().__init__(seed)
         if style not in ("expand", "aggressive", "defend"):
             raise ValueError("unknown scripted style")
         self.style = style
 
     def act(self, observation):
+        """지역 관측만 사용해 공격 또는 전선 접근 행동을 선택한다.
+
+        인접 적 타일을 공격하되 aggressive는 적 에이전트가 있는 칸을 더 우선한다.
+        defend는 인접 아군 위치의 방어 공격을 우선한다. 공격할 수 없으면 BFS로
+        보이는 아군 땅 안의 전선 경로를 찾고, 적 타일 앞의 cooldown 중에는 대기한다.
+        환경 상태를 직접 수정하지 않으며 동률 선택 등에 정책 전용 RNG를 사용한다.
+        """
         if not observation["self_features"][2]:
             return Action.NOOP
         grid, mask = observation["local_grid"], observation["action_mask"]

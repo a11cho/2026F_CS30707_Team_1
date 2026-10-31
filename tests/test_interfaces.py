@@ -17,6 +17,9 @@ from test_rules import scenario
 @pytest.mark.parametrize("obs_mode", ["local", "aware"])
 @pytest.mark.parametrize("reward_mode", ["individual", "team"])
 def test_spaces_lifecycle_and_invariants(obs_mode, reward_mode):
+    """관측/보상 네 조합에서 공간 형식·전체 면적·좌표 유일성·종료 시점 등 환경 계약을 검증한다.
+    임의 행동으로 환경만 진행하며 정책 학습은 수행하지 않는다.
+    """
     env = TerritoryParallelEnv(GameConfig(height=6, width=8, max_ticks=64), ExperimentConfig(obs_mode, reward_mode))
     obs, _ = env.reset(13)
     rng = np.random.default_rng(8)
@@ -40,6 +43,7 @@ def test_spaces_lifecycle_and_invariants(obs_mode, reward_mode):
 
 
 def test_official_parallel_contract_and_seed_reproducibility():
+    """PettingZoo 공식 검사로 Parallel API 반환 계약과 시드 재현성을 검증한다. 학습 테스트가 아니다."""
     from pettingzoo.test import parallel_api_test, parallel_seed_test
     factory = lambda: TerritoryParallelEnv(GameConfig(height=6, width=8, max_ticks=40))
     parallel_api_test(factory(), num_cycles=80)
@@ -47,6 +51,7 @@ def test_official_parallel_contract_and_seed_reproducibility():
 
 
 def test_same_trace_ignores_reward_observation_mode_and_submission_order():
+    """동일 시드·행동열에서 관측/보상 모드와 사전 삽입 순서가 상태·이벤트를 바꾸지 않는지 검증한다."""
     game = GameConfig(height=6, width=8, max_ticks=80)
     envs = [TerritoryEnvironment(game, ExperimentConfig(o, r)) for o in ("local", "aware") for r in ("individual", "team")]
     for e in envs:
@@ -62,6 +67,7 @@ def test_same_trace_ignores_reward_observation_mode_and_submission_order():
 
 
 def test_snapshot_and_observation_do_not_alias_internal_state():
+    """반환된 스냅샷·관측 배열을 바꾸어도 내부 맵과 행동 mask가 손상되지 않는지 검증한다."""
     env = scenario()
     s = env.snapshot()
     with pytest.raises(ValueError):
@@ -77,6 +83,7 @@ def test_snapshot_and_observation_do_not_alias_internal_state():
 
 
 def test_hidden_changes_do_not_leak_to_local_observation_or_mask():
+    """시야 밖 팀원 위치 변화는 local 관측에 숨겨지고 aware의 팀원 정보에는 나타나는지 검증한다."""
     first = scenario({"red_0": (0, 0), "red_1": (5, 0)})
     second = scenario({"red_0": (0, 0), "red_1": (5, 1)})
     for key, value in first.observe("red_0").items():
@@ -86,6 +93,7 @@ def test_hidden_changes_do_not_leak_to_local_observation_or_mask():
 
 
 def test_aware_previous_actions_and_dead_observation():
+    """사망자의 지역 관측/행동 mask와 aware의 직전 팀원 행동 표현이 올바른지 검증한다."""
     env = scenario({"red_0": (2, 2)}, experiment=ExperimentConfig(observation_mode="aware"))
     env.step({"red_0": Action.RIGHT, "red_1": Action.ATTACK_RIGHT})
     dead = env.observe("red_0")
@@ -95,6 +103,7 @@ def test_aware_previous_actions_and_dead_observation():
 
 
 def test_sessions_no_submission_leak_duplicate_and_stale_tokens():
+    """미완료 제출 행동의 관측 누출, 중복 제출, 전이/reset 뒤 오래된 세션 사용을 방지하는지 검증한다."""
     env = scenario(experiment=ExperimentConfig(observation_mode="aware"))
     collector = ActionCollector(env)
     collector.begin()
@@ -119,6 +128,7 @@ def test_sessions_no_submission_leak_duplicate_and_stale_tokens():
     ("d", Action.RIGHT), ("Up", Action.ATTACK_UP), ("Down", Action.ATTACK_DOWN),
     ("Left", Action.ATTACK_LEFT), ("Right", Action.ATTACK_RIGHT), ("space", Action.NOOP)])
 def test_keyboard_mapping_and_one_shot_consumption(key, expected):
+    """키→Action 매핑, 대소문자 처리, 예약 행동의 한 번 소비 및 미지원 키 무시를 검증한다."""
     keyboard = KeyboardController()
     assert keyboard.feed_key(key)
     assert keyboard.act({}) == expected
@@ -127,6 +137,7 @@ def test_keyboard_mapping_and_one_shot_consumption(key, expected):
 
 
 def test_keyboard_connects_through_manager_without_advancing_on_input():
+    """키 입력은 예약만 하고 manager가 전이를 수행하며, 최신 키 우선과 cooldown 거부 기록이 연결되는지 검증한다."""
     keyboard = KeyboardController()
     env = scenario({"red_0": (2, 2)})
     controllers = {a: NoopController() for a in AGENT_IDS}
@@ -144,6 +155,7 @@ def test_keyboard_connects_through_manager_without_advancing_on_input():
 
 
 def test_render_is_state_and_rng_independent():
+    """RGB 이미지 형식과 렌더링·반환 이미지 수정이 이후 상태/RNG 결과에 영향 없는지 검증한다."""
     a, b = scenario(), scenario()
     frame = render_rgb(a.snapshot())
     assert frame.shape == (144, 144, 3) and frame.dtype == np.uint8
@@ -155,6 +167,7 @@ def test_render_is_state_and_rng_independent():
 
 @pytest.mark.parametrize("style", ["expand", "aggressive", "defend"])
 def test_scripted_controllers_only_use_observations_and_valid_actions(style):
+    """세 scripted 스타일이 관측 사전만 받아 mask 안의 행동을 선택하며 경기를 진행할 수 있는지 검증한다."""
     env = TerritoryEnvironment(GameConfig(height=6, width=8, max_ticks=40))
     env.reset(9)
     bots = {a: FrontierController(i, style) for i, a in enumerate(AGENT_IDS)}
@@ -166,6 +179,9 @@ def test_scripted_controllers_only_use_observations_and_valid_actions(style):
 
 
 def test_tk_controls_step_reset_selection_and_cleanup():
+    """숨긴 Tk 창에서 키 처리·한 틱 진행·선택·reset·타이머·종료 자원 정리를 검증한다.
+    실제 키 주입 대신 핸들러에 이벤트 객체를 전달하는 UI 통합 검사다.
+    """
     import tkinter as tk
     from territory_rl.keyboard_demo import KeyboardDemo
     root = tk.Tk()

@@ -3,7 +3,13 @@ from .events import Event
 
 
 def resolve_attacks(owner, agents, actions):
-    """Read-only resolution using all valid attacks from the same start state."""
+    """틱 시작 상태에서 유효한 공격을 목표 타일별로 모아 공격·점령 이벤트를 반환한다.
+
+    owner는 소유권 배열, agents는 ID별 상태, actions는 검증된 적용 행동이다.
+    목표별 팀 공격 수가 같으면 기존 소유권을 유지하며, 다르면 많은 팀이 점령한다.
+    변경된 타일에는 승리 팀 공격자 목록을 남겨 개인 기여도를 계산할 수 있게 한다.
+    입력 상태를 수정하지 않는다. 경계·생존·cooldown 검증은 호출하는 환경이 담당한다.
+    """
     targets = defaultdict(lambda: [[], []])
     for aid in sorted(actions):
         a, action = agents[aid], actions[aid]
