@@ -8,13 +8,27 @@ from territory_rl import ExperimentConfig, GameConfig
 from territory_rl.agent import AgentState
 from territory_rl.models import AGENT_IDS
 from territory_rl.parallel_env import TerritoryParallelEnv
-from .config import RunConfig
+from .config import RunConfig, agreed_config
 from .encoding import encode
 from .learning import TabularControl, load_models, save_models
 from .runner import episode, evaluate, train
 
 
 class LearningTests(unittest.TestCase):
+    def test_agreed_configuration_and_diagnostic_readonly_evaluation(self):
+        cfg=agreed_config().validate()
+        self.assertEqual((cfg.height,cfg.width,cfg.ticks,cfg.episodes,cfg.radius,cfg.learner_count),(4,4,64,1000,1,6))
+        self.assertEqual(cfg.seeds,(7,19,31))
+        self.assertEqual(len(list(cfg.conditions())),4)
+        cfg=replace(cfg,episodes=2,ticks=4,diagnostic_interval=1,diagnostic_pairs=1,eval_opponents=("random",))
+        for algorithm in cfg.algorithms:
+            models,rows=train(cfg,ExperimentConfig(),algorithm,7)
+            diagnostics=models[0].training_diagnostics
+            self.assertEqual([d["episode"] for d in diagnostics],[0,1,2])
+            self.assertEqual(diagnostics[0]["q_states"],0)
+            self.assertTrue(all(m.decisions==8 and sum(m.pair_visits.values())==8 for m in models))
+            self.assertEqual(diagnostics[-1]["validation_games"],4)
+            self.assertEqual(diagnostics[-1]["updates"],sum(m.updates for m in models))
     def test_mc_first_visit_and_discount(self):
         model = TabularControl("mc", 1.0, 0.5)
         model.finish_episode([((1,), 2, 1), ((1,), 2, 2), ((2,), 3, 4)])
@@ -43,6 +57,63 @@ class LearningTests(unittest.TestCase):
         self.assertEqual(len(list(config.conditions())), 2)
         self.assertEqual(len(list(RunConfig().conditions())), 18)
 
+    def test_both_teams_update_all_six_independent_models(self):
+        from unittest.mock import patch
+        config = RunConfig(episodes=3,ticks=8,learner_count=6)
+        for algorithm in ("mc","sarsa"):
+            # 여섯 명 모드에서 고정 정책 봇을 생성하려고 하면 즉시 실패시킵니다.
+            with patch("smoke_test_mc_td.runner.controller",side_effect=AssertionError("봇 생성 금지")):
+                models, rows = train(config,ExperimentConfig(),algorithm,7)
+            self.assertEqual(len(models),6)
+            self.assertEqual(len({id(m.q) for m in models}),6)
+            self.assertTrue(all(m.updates>0 and len(m.q)>0 for m in models))
+            self.assertTrue(all(r["learner_samples"]==48 for r in rows))
+            self.assertTrue(all(r["learner_rejected"]==0 for r in rows))
+            for role, model in enumerate(models):
+                self.assertEqual(rows[-1][f"role_{role}_updates"],model.updates)
+                if algorithm == "sarsa":
+                    self.assertEqual(model.updates,24)
+
+    def test_evaluate_both_cohorts_without_updates(self):
+        config = RunConfig(episodes=2,ticks=6,learner_count=6,validation_pairs=1,eval_opponents=("random",))
+        models,_ = train(config,ExperimentConfig(),"sarsa",19)
+        before = [(m.updates,{k:v.copy() for k,v in m.q.items()}) for m in models]
+        rows = evaluate(config,ExperimentConfig(),models,"validation")
+        self.assertEqual(len(rows),4)
+        self.assertEqual({(r["cohort"],r["team"]) for r in rows},{(0,0),(0,1),(1,0),(1,1)})
+        for model,(updates,q) in zip(models,before):
+            self.assertEqual(model.updates,updates)
+            self.assertEqual(model.q.keys(),q.keys())
+            for key in q:
+                np.testing.assert_array_equal(model.q[key],q[key])
+
+    def test_both_team_roles_swap_and_keep_their_trajectories(self):
+        class RecordedModel(TabularControl):
+            def __init__(self):
+                super().__init__("sarsa")
+                self.keys=[]
+                self.actions=[]
+                self.observed=[]
+            def act(self,key,mask,epsilon,rng,track=False):
+                self.keys.append(key)
+                action=super().act(key,mask,epsilon,rng,track)
+                self.actions.append(action)
+                return action
+            def sarsa_step(self,key,action,reward,next_key=None,next_action=None,terminated=False):
+                self.observed.append((key,action,next_action,terminated))
+                super().sarsa_step(key,action,reward,next_key,next_action,terminated)
+        for team in (0,1):
+            env=TerritoryParallelEnv(GameConfig(height=6,width=6,max_ticks=4))
+            initial,_=env.reset(seed=7)
+            ids=AGENT_IDS[team*3:]+AGENT_IDS[:team*3]
+            models=[RecordedModel() for _ in range(6)]
+            episode(env,models,team,7,19,0.8,training=True)
+            for aid,model in zip(ids,models):
+                self.assertEqual(model.keys[0],encode(initial[aid]))
+                self.assertEqual([r[1] for r in model.observed],model.actions)
+                self.assertEqual([r[2] for r in model.observed[:-1]],model.actions[1:])
+                self.assertEqual([r[3] for r in model.observed],[False,False,False,True])
+
     def test_aware_features_are_used(self):
         local = TerritoryParallelEnv(GameConfig(height=6,width=6,observation_radius=2))
         aware = TerritoryParallelEnv(GameConfig(height=6,width=6,observation_radius=2),
@@ -56,7 +127,8 @@ class LearningTests(unittest.TestCase):
         for algorithm in ("mc", "sarsa"):
             a, rows_a = train(config, ExperimentConfig(), algorithm, 7)
             b, rows_b = train(config, ExperimentConfig(), algorithm, 7)
-            self.assertEqual(rows_a, rows_b)
+            stable=lambda rows:[{k:v for k,v in r.items() if not k.endswith("_seconds")} for r in rows]
+            self.assertEqual(stable(rows_a), stable(rows_b))
             self.assertGreater(a[0].updates, 0)
             for key in a[0].q:
                 np.testing.assert_array_equal(a[0].q[key], b[0].q[key])

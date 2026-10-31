@@ -1,0 +1,106 @@
+[
+  {
+    "name": "sarsa_four_conditions",
+    "fps": 4,
+    "duration_seconds": 18.75,
+    "frame_count": 75,
+    "avi_frame_count": 75,
+    "gif_stored_frames": 65,
+    "gif_duration_ms": 18750,
+    "avi_resolution": [
+      1280,
+      1020
+    ],
+    "gif_resolution": [
+      960,
+      765
+    ],
+    "environment_seed": 7,
+    "policy_seed": 1247478191,
+    "training": false,
+    "checkpoint_details": [
+      {
+        "condition": "local_individual_gross_b0",
+        "algorithm": "sarsa",
+        "training_seed": 31,
+        "environment_seed": 7,
+        "policy_seed": 1247478191,
+        "mode": "both",
+        "checkpoint": "C:\\Users\\dohyu\\Desktop\\B_KAIST\\102_강의(26Fall)\\14. 강화개\\2026F_CS30707_Team_1\\smoke_test_mc_td\\runs\\20261031T112320430780Z\\local_individual_gross_b0\\sarsa\\seed_31\\model.json.gz",
+        "checkpoint_sha256": "c024f9cd46c8b92ad44edf597e5e3311e5936850fd6d31b0f74ad06a9cfbe660"
+      },
+      {
+        "condition": "local_team_terminal_b1",
+        "algorithm": "sarsa",
+        "training_seed": 7,
+        "environment_seed": 7,
+        "policy_seed": 1247478191,
+        "mode": "both",
+        "checkpoint": "C:\\Users\\dohyu\\Desktop\\B_KAIST\\102_강의(26Fall)\\14. 강화개\\2026F_CS30707_Team_1\\smoke_test_mc_td\\runs\\20261031T112320430780Z\\local_team_terminal_b1\\sarsa\\seed_7\\model.json.gz",
+        "checkpoint_sha256": "98c3ac63da928e4fa0bce67b6e158a70e45d4a03c3ab28383a724028a167d21f"
+      },
+      {
+        "condition": "aware_individual_gross_b0",
+        "algorithm": "sarsa",
+        "training_seed": 31,
+        "environment_seed": 7,
+        "policy_seed": 1247478191,
+        "mode": "both",
+        "checkpoint": "C:\\Users\\dohyu\\Desktop\\B_KAIST\\102_강의(26Fall)\\14. 강화개\\2026F_CS30707_Team_1\\smoke_test_mc_td\\runs\\20261031T112320430780Z\\aware_individual_gross_b0\\sarsa\\seed_31\\model.json.gz",
+        "checkpoint_sha256": "ba8fbe6bdc4950fff87c2991976301f7feebf508a38f029df88d0232b69b65ed"
+      },
+      {
+        "condition": "aware_team_terminal_b1",
+        "algorithm": "sarsa",
+        "training_seed": 7,
+        "environment_seed": 7,
+        "policy_seed": 1247478191,
+        "mode": "both",
+        "checkpoint": "C:\\Users\\dohyu\\Desktop\\B_KAIST\\102_강의(26Fall)\\14. 강화개\\2026F_CS30707_Team_1\\smoke_test_mc_td\\runs\\20261031T112320430780Z\\aware_team_terminal_b1\\sarsa\\seed_7\\model.json.gz",
+        "checkpoint_sha256": "de7411b2de46a21031ce51cb0993081227b31ccd56b00acbc2d34620e5055e27"
+      }
+    ]
+  },
+  {
+    "name": "local_individual_mc_sarsa",
+    "fps": 4,
+    "duration_seconds": 18.75,
+    "frame_count": 75,
+    "avi_frame_count": 75,
+    "gif_stored_frames": 65,
+    "gif_duration_ms": 18750,
+    "avi_resolution": [
+      1280,
+      584
+    ],
+    "gif_resolution": [
+      960,
+      438
+    ],
+    "environment_seed": 7,
+    "policy_seed": 1247478191,
+    "training": false,
+    "checkpoint_details": [
+      {
+        "condition": "local_individual_gross_b0",
+        "algorithm": "mc",
+        "training_seed": 19,
+        "environment_seed": 7,
+        "policy_seed": 1247478191,
+        "mode": "both",
+        "checkpoint": "C:\\Users\\dohyu\\Desktop\\B_KAIST\\102_강의(26Fall)\\14. 강화개\\2026F_CS30707_Team_1\\smoke_test_mc_td\\runs\\20261031T112320430780Z\\local_individual_gross_b0\\mc\\seed_19\\model.json.gz",
+        "checkpoint_sha256": "f1f6bf34ca25d8de35535026ad6ccfdefd734444e3cb65e35509455538c52677"
+      },
+      {
+        "condition": "local_individual_gross_b0",
+        "algorithm": "sarsa",
+        "training_seed": 31,
+        "environment_seed": 7,
+        "policy_seed": 1247478191,
+        "mode": "both",
+        "checkpoint": "C:\\Users\\dohyu\\Desktop\\B_KAIST\\102_강의(26Fall)\\14. 강화개\\2026F_CS30707_Team_1\\smoke_test_mc_td\\runs\\20261031T112320430780Z\\local_individual_gross_b0\\sarsa\\seed_31\\model.json.gz",
+        "checkpoint_sha256": "c024f9cd46c8b92ad44edf597e5e3311e5936850fd6d31b0f74ad06a9cfbe660"
+      }
+    ]
+  }
+]

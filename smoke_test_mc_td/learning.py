@@ -1,5 +1,6 @@
 import gzip
 import json
+from collections import Counter
 import numpy as np
 
 
@@ -13,6 +14,12 @@ class TabularControl:
         self.updates = 0
         self.decisions = 0
         self.known_decisions = 0
+        # 진단 통계는 행동 선택과 Q 갱신에 사용하지 않습니다.
+        self.state_visits = Counter()
+        self.pair_visits = Counter()
+        self.abs_error_sum = 0.0
+        self.abs_change_sum = 0.0
+        self.window_max_change = 0.0
 
     def values(self, key):
         """저장된 Q 배열을 조회하며 미방문 key는 저장하지 않고 0을 반환합니다."""
@@ -27,19 +34,29 @@ class TabularControl:
             self.decisions += 1
             self.known_decisions += int(key in self.q)
         if rng.random() < epsilon:
-            return int(rng.choice(legal))
-        values = self.values(key)[legal]
-        return int(rng.choice(legal[np.flatnonzero(values == values.max())]))
+            action = int(rng.choice(legal))
+        else:
+            values = self.values(key)[legal]
+            action = int(rng.choice(legal[np.flatnonzero(values == values.max())]))
+        if track:
+            self.state_visits[key] += 1
+            self.pair_visits[(key,action)] += 1
+        return action
 
     def update(self, key, action, target):
         """지정한 한 상태·행동의 Q를 고정 학습률로 타깃 방향으로 갱신합니다."""
         if not np.isfinite(target):
             raise FloatingPointError("타깃에 NaN 또는 무한대가 있습니다.")
         values = self.q.setdefault(key, np.zeros(9, dtype=float))
-        values[action] += self.alpha * (target - values[action])
+        error = target - values[action]
+        change = self.alpha * error
+        values[action] += change
         if not np.isfinite(values[action]):
             raise FloatingPointError("Q값에 NaN 또는 무한대가 있습니다.")
         self.updates += 1
+        self.abs_error_sum += float(abs(error))
+        self.abs_change_sum += float(abs(change))
+        self.window_max_change = max(self.window_max_change,float(abs(change)))
 
     def finish_episode(self, trajectory):
         """시간순 (관측 key, 행동, 보상) 경험열에 first-visit MC를 적용합니다.

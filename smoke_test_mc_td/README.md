@@ -4,6 +4,10 @@
 return으로, SARSA(0)는 매 틱 한 스텝 TD 타깃으로 행동가치 Q를 갱신합니다.
 두 방법 모두 행동 마스크를 적용한 epsilon-greedy 정책과 Q-table을 사용합니다.
 
+현재 기본은 **3대3 양 팀 여섯 명 전원 학습**입니다. 기존 `20261031T093149737642Z`
+결과와 토의 보고서는 변경 전의 한 명 학습 실험이며, 여섯 명 학습 결과가 아닙니다.
+기존 로그와 체크포인트는 그대로 보존합니다.
+
 ## 실행 방법
 
 프로젝트 루트 `2026F_CS30707_Team_1`에서 PowerShell로 실행하세요.
@@ -16,8 +20,8 @@ $rlPython = 'C:\Users\dohyu\anaconda3\envs\rlTeam\python.exe'
 & $rlPython -B -m smoke_test_mc_td.run --preset quick
 # 전체 보상·관측 그리드
 & $rlPython -B -m smoke_test_mc_td.run --preset full
-# 한 팀 세 명을 독립적으로 학습
-& $rlPython -B -m smoke_test_mc_td.run --preset full --learners 3
+# 양 팀 여섯 명을 독립적으로 학습
+& $rlPython -B -m smoke_test_mc_td.run --preset full --learners 6
 # SARSA만 학습하고 에피소드 수 증가
 & $rlPython -B -m smoke_test_mc_td.run --preset full --algorithm sarsa --episodes 500
 ```
@@ -36,8 +40,8 @@ rlTeam의 Python을 직접 지정하므로 conda activate는 필요 없습니다
 | 학습 seed | 7, 19, 31, 43, 59 | 동일 |
 | seed별 학습 | 4에피소드 × 12틱 | 80에피소드 × 32틱 |
 | 학습 실행 수 | 20개 | 180개 |
-| validation | random, seed 1개 × 양쪽 진영 | 상대 4종 각각 seed 10개 × 양쪽 진영 |
-| test | random, seed 1개 × 양쪽 진영 | 상대 4종 각각 seed 30개 × 양쪽 진영 |
+| validation | 양 팀 각각 random, seed 1개 × 양쪽 진영: 총 4경기 | 두 팀 × 상대 4종 × seed 10개 × 양쪽 진영: 총 160경기 |
+| test | 양 팀 각각 random, seed 1개 × 양쪽 진영: 총 4경기 | 두 팀 × 상대 4종 × seed 30개 × 양쪽 진영: 총 480경기 |
 
 quick은 실행 흐름을 확인하는 용도이며 성능 비교용이 아닙니다. full도 작은
 스모크테스트 예산이며 80에피소드로 충분히 학습된다고 보장하지 않습니다.
@@ -89,14 +93,22 @@ local의 추가 팀원 정보는 환경에서 가려지고 aware에서는 key에
 
 ## 학습자와 난수 설정
 
-기본은 **한 명 학습 + 고정 expand 정책의 아군 두 명**이며, 상대는 고정 random
-정책 세 명입니다. 에피소드마다 red/blue 진영을 교대합니다. `--learners 3`은
-독립 Q-table 세 개로 학습하며 파라미터를 공유하지 않습니다. 이 경우 학습하는
-팀원 때문에 각 학습자가 보는 환경의 동작도 변할 수 있습니다.
+기본은 **3대3 여섯 명 모두 학습**입니다. MC 실행에서는 여섯 명 모두 MC,
+SARSA 실행에서는 모두 SARSA를 사용합니다. 독립 Q-table 6개로 파라미터를 공유하지
+않습니다. 모델 role 0–2와 role 3–5가 각각 한 팀이며 에피소드마다 팀 묶음의
+red/blue 진영을 교대합니다. 각자 받은 보상·경험으로 갱신하고 사망·부활도 연결합니다.
+학습에서는 고정 정책 봇을 사용하지 않습니다. `train_opponent`는 이 모드에서
+사용하지 않으며 고정 상대는 평가에만 등장합니다.
+
+`--learners 1` 또는 `--learners 3`은 기존 한쪽 팀 학습 모드를 재현하는 옵션입니다.
+그때만 나머지 아군은 expand, 상대는 train_opponent 정책을 사용합니다.
+양 팀이 함께 바뀌므로 학습 중 상대는 고정되어 있지 않습니다.
 
 학습 seed는 **7, 19, 31, 43, 59**입니다. SeedSequence로 환경·정책·봇의 난수를
 분리합니다. validation/test는 서로 다른 고정 난수 영역이고 모든 후보가 동일한
-평가 seed 집합을 사용합니다. 각 seed를 양쪽 진영에서 평가하며 full에서는
+평가 seed 집합을 사용합니다. 양 팀 6명 모드는 평가 master=20261031,
+validation domain=40, test domain=50을 사용하며 정책 domain은 각각 +1입니다.
+기존 한 팀 모드는 20/30을 유지합니다. 각 seed를 양쪽 진영에서 평가하며 full에서는
 random·expand·aggressive·defend 상대에 같은 경기 수를 배정합니다.
 
 기본 alpha=0.1, gamma=0.99, 초기 Q=0이며 epsilon은 1.0에서 0.1까지 선형 감소합니다.
@@ -130,7 +142,7 @@ terminal 설정은 제외합니다. alpha·gamma는 기본 그리드에 포함�
 3. 학습 전 Q=0 기준선도 같은 validation 경기에서 평가합니다.
 4. validation 경기 점수(승 1, 무 0.5, 패 0)의 평균으로 최고 seed를 고릅니다.
 5. 동점이면 최종 면적 비율, 그것도 같으면 설정에서 먼저 나온 seed를 고릅니다.
-6. 선택 모델만 별도 test seed로 평가합니다.
+6. 선택 모델만 별도 test seed로 평가합니다. 양 팀 학습 모델은 각 팀 묶음(3명)을 고정 상대와 따로 평가합니다. 두 팀의 평가 점수를 같은 가중치로 합쳐 모델을 선정하고, 묶음별 점수도 별도로 저장합니다.
 7. 알고리즘별 전체 조건의 대표 모델도 validation 지표만으로 고릅니다.
 
 누적 보상은 보상함수마다 의미·크기가 달라 모델 선정에 사용하지 않습니다.
@@ -159,8 +171,13 @@ runs/<실행시각>/
       └─ summary.json               # 해당 후보 요약
 ```
 
+CSV의 cohort=0은 모델 role 0–2, cohort=1은 role 3–5입니다.
+학습 로그의 mean_return은 첫 팀 묶음 기준이며 양 팀 net 보상이 상쇄되는 것을
+피합니다. red/blue_mean_return, red/blue_score, red/blue_area와 각 role의 return·updates·q_states를
+별도로 기록합니다. 6명 모드의 deaths/dead_samples/learner_samples는 여섯 명 전체입니다.
+
 `selected.csv`부터 확인하고 `results.json`의 groups에서 seed 간 편차와 기준선을
-함께 보세요. CSV에는 상대·진영도 기록됩니다. `mean_return`은 학습자들의 비할인
+함께 보세요. CSV에는 상대·진영도 기록됩니다. `mean_return`은 첫 팀 묶음 학습자들의 비할인
 에피소드 보상을 평균한 값, `area_fraction`은 최종 팀 면적 비율,
 `dead_fraction`은 사망 대기 전이 비율, `learner_rejected`는 금지 행동 제출 수입니다.
 
@@ -179,7 +196,7 @@ from smoke_test_mc_td.config import RunConfig
 from smoke_test_mc_td.run import run_grid
 
 cfg = replace(
-    RunConfig(), episodes=500, learner_count=3,
+    RunConfig(), episodes=500, learner_count=6,
     observation_modes=("local", "aware"),
     reward_specs=(("individual", "gross", 0.0), ("team", "gross", 0.0)),
 )
@@ -206,3 +223,28 @@ print(summarize(rows))
 두 노트북은 같은 Python 구현을 부르는 실행 창구이며 알고리즘을 중복 구현하지
 않습니다. rlTeam에 Jupyter 커널이 없으면 명령행으로 먼저 사용하세요. 커널 등록은
 자동으로 하지 않습니다. 앞으로 이 모듈의 주석과 설명은 한국어로 작성합니다.
+
+## 한 명과 여섯 명 학습 속도 비교
+
+`benchmark_learning.py`는 같은 6×6 맵·80에피소드·32틱·seed 7에서 MC/SARSA와
+local/aware를 각각 한 명/여섯 명 모드로 3회씩 독립 프로세스에서 측정합니다.
+학습 함수 시간만 재며 평가·저장·import는 제외합니다. 원자료는
+`six_learner_benchmark.json`에 저장합니다. 환경 전이는 한 번씩 그대로 실행하고
+Q 업데이트와 관측 인코딩이 늘어나므로 속도가 반드시 6배 느려지지는 않습니다.
+반면 양 팀을 고정 상대로 각각 평가하므로 기본 평가 경기 수는 기존의 두 배입니다.
+
+기존 토의 보고서와 analyze_results.py는 이전 한 명 실험을 대상으로 합니다.
+소스 해시가 바뀐 뒤 이전 보고서 재생성은 검사를 통과하지 않을 수 있으며,
+여섯 명 실험 분석에는 cohort와 총 학습자 수를 반영해야 합니다.
+
+실측 비교(동일 PC, 각 3회 중앙값, 후보당 80에피소드 × 32틱):
+
+| 방법 | 관측 | 한 명 학습 초 | 여섯 명 학습 초 | 시간 배율 |
+| --- | --- | --- | --- | --- |
+| mc | local | 1.834 | 2.411 | 1.31 |
+| mc | aware | 1.904 | 2.610 | 1.37 |
+| sarsa | local | 1.814 | 2.402 | 1.32 |
+| sarsa | aware | 1.951 | 2.713 | 1.39 |
+
+프로세스 peak working set은 한 명 모드 약 41–43MiB, 여섯 명 모드 약 49–54MiB였습니다.
+이 수치는 해당 작은 설정의 관측값이며 긴 학습·작은 맵·다른 CPU의 실행 시간을 보장하지 않습니다.
