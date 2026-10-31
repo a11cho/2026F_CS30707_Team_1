@@ -1,0 +1,514 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=25mm]{geometry}
+\usepackage{kotex}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{array}
+\usepackage[hidelinks]{hyperref}
+\usepackage{url}
+\usepackage{bm}
+\setlength{\parindent}{1em}
+\setlength{\parskip}{0.35em}
+\setlength{\emergencystretch}{3em}
+\allowdisplaybreaks[1]
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\KL}{D_{\mathrm{KL}}}
+\newcommand{\clip}{\operatorname{clip}}
+\newcommand{\ind}{\mathbb{I}}
+\newcommand{\TBD}{\textbf{[미정]}}
+
+\title{강화학습 알고리즘 문헌 정리\\[3pt]\large TRPO, PPO, SAC, GRPO, DAPO, SDPO와 다중 에이전트·보상 설계 문헌}
+\author{CS30707 팀 프로젝트 참고 문서}
+\date{2026년 10월 30일}
+
+\begin{document}
+\maketitle
+
+\section{문서의 목적과 읽기 범위}
+이 문서는 3대3 territory-control 게임에서 \emph{팀원 간 정보 구조}(독립 결정, 순차 결정, 의도 공유)와 \emph{보상 목표}(팀 승리, 팀 승리와 개인 생존)가 협력 행동에 미치는 영향을 분석하기 위해 참고할 강화학습 알고리즘을 정리한다. 알고리즘 자체의 목적함수, 학습 신호, 특징 및 한계를 중심으로 기술한다. 새로운 알고리즘 제안이나 코드 수준의 구현 설계는 범위에 포함하지 않으며, 프로젝트와 관련된 설계 판단은 \S\ref{sec:project}에 개념 수준으로만 정리한다.
+
+지정 자료의 범위는 다음과 같다.
+\begin{enumerate}
+ \item \textbf{OpenAI Spinning Up}: \url{https://spinningup.openai.com/en/latest/} 중 TRPO, PPO, SAC만 검토한다. 각 알고리즘의 개별 문서 링크는 해당 절에 수록한다.
+ \item \textbf{DeepSeek-R1}: \url{https://arxiv.org/pdf/2501.12948} 중 Section 2의 GRPO 관련 설명과 Appendix A.3의 PPO--GRPO 비교를 중심으로 정리한다. Section 2.2의 보상 설계는 알고리즘 이해에 필요한 수준으로만 포함한다.
+ \item \textbf{DAPO}: \url{https://dapo-sia.github.io/} 및 기술 보고서 \url{https://arxiv.org/pdf/2503.14476}를 바탕으로 주요 설계 변경과 실험적 관찰을 정리한다.
+ \item \textbf{SDPO}: \url{https://self-distillation.github.io/SDPO}를 바탕으로 연구 아이디어만 간략히 정리한다. 프로젝트에서 사용할지는 미정이다.
+\end{enumerate}
+
+지정 자료만으로는 실제로 사용할 다중 에이전트 PPO, 순차 결정과 통신, 보상 shaping을 설명할 수 없다. 따라서 다음을 \textbf{추가 문헌}으로 포함한다.
+\begin{enumerate}
+ \setcounter{enumi}{4}
+ \item 각 알고리즘의 원 논문과 PPO 구현 세부(\S\ref{sec:trpo}--\S\ref{sec:sac}).
+ \item 다중 에이전트 강화학습: parameter sharing, IPPO/MAPPO, credit assignment, 순차 결정, learned communication(\S\ref{sec:marl}).
+ \item 보상 설계: potential-based reward shaping과 시간 제한 처리(\S\ref{sec:reward}).
+\end{enumerate}
+지정 자료와 추가 문헌을 읽는 우선순위는 \S\ref{sec:reading}에 정리한다.
+
+프로젝트 저장소는 \url{https://github.com/a11cho/2026F_CS30707_Team_1}이다 \cite{repo}. 2026년 10월 30일 기준으로 저장소에는 게임 규칙 문서(\texttt{env.md})와 환경 구현 초안(\texttt{territory\_rl/})이 있다. 본 문서의 프로젝트 서술은 저장소의 맵·규칙과 팀이 정한 6개 실험 조건(\S\ref{sec:project})을 따른다. 아직 확정되지 않은 사항은 본문에 \TBD{}으로 표시하며, 실험 계획이 바뀌면 문서를 갱신한다.
+
+\section{공통 개념 및 표기}\label{sec:common}
+Policy \(\pi_\theta(a\mid s)\)는 state \(s\)에서 행동 \(a\)를 선택할 확률을 나타낸다. \(\theta_{\mathrm{old}}\)는 데이터를 수집한 이전 policy의 파라미터이며, 이 policy를 \(\pi_{\mathrm{old}}\coloneqq\pi_{\theta_{\mathrm{old}}}\)로 줄여 쓴다. 다음의 importance ratio는 policy 변화의 정도를 표현한다.
+\begin{equation}
+ \rho_t(\theta)=\frac{\pi_\theta(a_t\mid s_t)}{\pi_{\mathrm{old}}(a_t\mid s_t)}.
+\end{equation}
+State-value function \(V^\pi(s)\), action-value function \(Q^\pi(s,a)\), advantage \(A^\pi(s,a)=Q^\pi(s,a)-V^\pi(s)\)를 사용한다. Advantage는 특정 행동이 해당 상태의 평균적인 선택보다 얼마나 유리한지를 뜻한다.
+
+Discounting factor \(\gamma\in[0,1)\)은 미래 보상의 가중치를 정한다. \(k\)틱 뒤 보상의 가중치는 \(\gamma^k\)이므로 유효 지평은 대략 \(1/(1-\gamma)\)틱이다. 예를 들어 \(\gamma=0.99\)이면 약 100틱이고, 256틱 뒤 보상의 가중치는 \(0.99^{256}\approx0.08\)이다.
+
+\paragraph{GAE.} PPO와 TRPO에서 자주 사용하는 generalized advantage estimation(GAE) \cite{gae}은 TD residual
+\begin{equation}
+ \delta_t=r_t+\gamma(1-d_{t+1})V(s_{t+1})-V(s_t)
+\end{equation}
+를 이용해
+\begin{equation}
+ \widehat A_t^{\mathrm{GAE}(\gamma,\lambda)}=\sum_{l=0}^{T-t-1}(\gamma\lambda)^l\delta_{t+l}
+\end{equation}
+형태로 계산한다. \(d_{t+1}\)은 \(s_{t+1}\)이 종료 상태이면 1, 아니면 0이다. \(\lambda\in[0,1]\)는 bias--variance trade-off를 조절한다. \(\lambda=0\)이면 한 단계 TD 오차 \(\delta_t\)만 쓰므로 분산은 작지만 \(V\)가 부정확한 만큼 bias가 생긴다. \(\lambda=1\)이면 Monte Carlo return에서 \(V(s_t)\)를 뺀 값이 되어 \(V\)로 인한 bias는 없지만 분산이 크다. 이 구조는 TD(\(\lambda\))의 \(\lambda\)-return과 같다(Spinning Up의 GAE 설명 참고). Value function의 학습 목표(return target)로는 보통 \(\widehat R_t=\widehat A_t+V(s_t)\)를 쓰며, Spinning Up 구현은 reward-to-go \(\sum_{l\ge0}\gamma^l r_{t+l}\)를 쓴다.
+
+반면 GRPO와 DAPO의 \emph{group-relative advantage}는 value function을 학습하지 않고 같은 입력에 대한 출력 집단의 보상을 정규화한다. 이 둘은 이름이 advantage로 같아도 추정 방식과 적용 단위가 다르다.
+
+\paragraph{종료와 중단.} 에피소드가 끝나는 이유는 두 가지로 구분해야 한다 \cite{timelimits}. 2026.10.30. 팀미팅 이후 정한 종료(승패가 정해지는 마지막 틱 등)는 \emph{termination}으로 보고 \(d=1\), 즉 이후 가치를 0으로 둔다. 학습 편의를 위해 rollout을 중간에 자른 경우는 \emph{truncation}이므로 마지막 상태의 \(V\)로 bootstrap해야 한다. 시간 제한이 과제의 일부라면 남은 시간을 관측에 넣어야 한다. 그렇지 않으면 같은 관측이라도 남은 시간에 따라 가치가 달라져, 가치함수가 이를 구별할 수 없다. 이 프로젝트의 종료 틱 \(T\)는 승패가 정해지는 과제 내 종료에 해당한다.
+
+\section{Trust Region Policy Optimization (TRPO)}\label{sec:trpo}
+\noindent\textbf{출처:} \url{https://spinningup.openai.com/en/latest/algorithms/trpo.html} \cite{spin-trpo}; 원 논문 \cite{trpo}.
+
+\subsection{문제의식과 목적함수}
+정책 경사(policy gradient) 방법에서는 파라미터 공간에서의 작은 이동이 정책, 즉 행동 분포의 작은 변화를 보장하지 않는다. 그래서 한 번의 큰 업데이트로 성능이 급격히 무너질 수 있다. TRPO는 정책을 개선하되 이전 정책과의 평균 KL divergence를 지정된 범위 안에 유지하도록 제약한다.
+\begin{align}
+ \max_\theta\quad &\mathcal L(\theta_{\mathrm{old}},\theta)
+ =\E_{s,a\sim\pi_{\mathrm{old}}}
+ \left[\frac{\pi_\theta(a\mid s)}{\pi_{\mathrm{old}}(a\mid s)}A^{\pi_{\mathrm{old}}}(s,a)\right],\\
+ \text{s.t.}\quad&\overline{\KL}(\pi_\theta\|\pi_{\mathrm{old}})\le\delta.
+\end{align}
+여기서 \(\overline{\KL}\)은 이전 정책이 방문한 상태에 대한 평균 KL divergence이고, \(\delta\)는 허용하는 policy 변화량이다. 원 논문 \cite{trpo}은 surrogate \(\mathcal L\)에서 최대 KL에 비례하는 항을 뺀 값이 실제 성능의 하한이 된다는 단조 개선 이론에서 출발하고, 실용 알고리즘에서는 이를 평균 KL 제약으로 완화한다.
+
+\subsection{실제 업데이트}
+현재 파라미터 근방에서 목적함수(objective)를 일차, KL constraint를 이차로 근사한다. \(d=\theta-\theta_{\mathrm{old}}\), \(g=\nabla_\theta\mathcal L\), \(H\)를 평균 KL의 Hessian이라 하면,
+\begin{equation}
+ \max_d\ g^\top d\quad\text{s.t.}\quad\frac12 d^\top H d\le\delta
+ \qquad\Longrightarrow\qquad
+ d_*=\sqrt{\frac{2\delta}{g^\top H^{-1}g}}\,H^{-1}g.
+\end{equation}
+실제 업데이트는 \(\theta_{\mathrm{new}}=\theta_{\mathrm{old}}+\alpha^j d_*\)이다. \(\alpha\in(0,1)\)은 backtracking 계수이고, \(j\)는 실제 KL 제약과 surrogate 개선을 모두 만족하는 가장 작은 음이 아닌 정수다. 이 과정에는 세 가지 계산 기법이 쓰인다.
+\begin{itemize}
+ \item \textbf{Hessian--vector product}: \(H\)를 행렬로 만들지 않고 \(Hx\)만 계산한다. 평균 KL의 gradient와 \(x\)의 내적을 한 번 더 미분하면 \(Hx\)가 나온다.
+ \item \textbf{Conjugate gradient}: \(Hx=g\)를 \(Hx\) 곱셈만 반복해서 근사적으로 푸는 방법이다. \(H^{-1}\)을 직접 구하지 않으며, Spinning Up 구현은 10회 반복한다.
+ \item \textbf{Backtracking line search}: 이차 근사는 step이 클수록 부정확하므로, step을 \(\alpha^j\)배로 줄여 가며 실제 KL과 surrogate 개선을 확인한다.
+\end{itemize}
+Spinning Up의 TRPO도 PPO처럼 별도의 value functino을 학습하고 GAE로 advantage를 추정한다.
+
+\subsection{해석과 한계}
+TRPO는 \emph{on-policy}이며 이산 및 연속 행동을 모두 다룰 수 있다. 정책 업데이트 안정성을 이해하기 위한 출발점으로 중요하지만, Hessian--vector product, conjugate gradient 및 line search가 필요하므로 구현 복잡도가 높다. 이후 PPO의 간단한 제한적 업데이트를 이해하기 위한 이론적 비교 대상이다.
+
+\section{Proximal Policy Optimization (PPO)}\label{sec:ppo}
+\noindent\textbf{출처:} \url{https://spinningup.openai.com/en/latest/algorithms/ppo.html} \cite{spin-ppo}; 원 논문 \cite{ppo}; 구현 세부 \cite{ppo-details,whatmatters}.
+
+\subsection{핵심 아이디어}
+PPO는 TRPO와 같은 문제, 즉 지나치게 큰 policy 업데이트를 다루지만, 이차 근사와 conjugate gradient 없이 일차 최적화만으로 계산 효율을 높인다. 원 논문은 KL penalty 형태와 clipping 형태를 모두 제안하며, Spinning Up은 주로 \textbf{PPO-Clip}을 설명한다. PPO-Clip은 다음의 surrogate objective를 최대화한다.
+\begin{equation}
+ L^{\mathrm{clip}}(\theta)=\E_t\!\left[
+ \min\left(\rho_t(\theta)\widehat A_t,
+ \clip(\rho_t(\theta),1-\epsilon,1+\epsilon)\widehat A_t\right)
+ \right].
+\end{equation}
+\(\widehat A_t>0\)이면 유리한 행동의 확률을 높이는 방향으로 학습하지만 \(1+\epsilon\)을 넘는 확률비에서 추가 개선의 이득을 제한한다. \(\widehat A_t<0\)이면 불리한 행동의 확률을 줄이는 효과가 \(1-\epsilon\) 아래에서 제한된다. Clipping은 \emph{엄밀한 KL 제약}이 아니며, 실제 정책 간 KL을 항상 일정 값 이하로 보장하지는 않는다.
+
+KL penalty 형태는 \(\E_t[\rho_t\widehat A_t-\beta\,\KL(\pi_{\mathrm{old}}(\cdot\mid s_t)\|\pi_\theta(\cdot\mid s_t))]\)를 최대화하고, 관측된 KL이 목표보다 크면 \(\beta\)를 키우고 작으면 줄인다 \cite{ppo}. 원 논문의 실험에서는 clipping 형태가 더 좋은 성능을 보였다.
+
+\subsection{전체 손실}
+원 논문은 정책과 가치함수가 파라미터를 공유하는 경우 다음의 결합 목적함수를 최대화한다 \cite{ppo}.
+\begin{equation}
+ L(\theta)=\E_t\!\left[
+ \min\left(\rho_t\widehat A_t,\clip(\rho_t,1-\epsilon,1+\epsilon)\widehat A_t\right)
+ -c_1\bigl(V_\theta(s_t)-\widehat R_t\bigr)^2
+ +c_2\,\mathcal H\bigl(\pi_\theta(\cdot\mid s_t)\bigr)\right].
+\end{equation}
+둘째 항은 value function(\emph{critic}) 손실이고, 셋째 항은 entropy bonus로 정책이 너무 일찍 결정적으로 굳는 것을 막아 탐색을 유지한다. Spinning Up 구현은 actor와 critic을 별도 네트워크로 두고 entropy 항을 쓰지 않는다. 반면 원 논문의 Atari 설정을 비롯한 많은 이산 행동 구현은 entropy 항을 사용한다 \cite{ppo,ppo-details}.
+
+\subsection{학습 흐름}
+\begin{enumerate}
+ \item 현재 정책 \(\pi_{\mathrm{old}}\)로 여러 환경에서 일정 길이의 rollout을 수집한다. 각 transition에 \(s_t,a_t,r_t,d_t\), \(\log\pi_{\mathrm{old}}(a_t\mid s_t)\), \(V(s_t)\)와 (사용한다면) action mask를 저장한다.
+ \item GAE로 \(\widehat A_t\)와 \(\widehat R_t=\widehat A_t+V(s_t)\)를 계산한다.
+ \item 같은 batch를 \(K\) epoch 동안 minibatch로 나누어 위 손실을 최적화한다. 같은 데이터를 여러 번 쓰지만 clipping이 정책 변화를 제한한다.
+ \item (선택) 정책 간 근사 KL이 목표값을 넘으면 그 batch에 대한 업데이트를 조기 종료한다. Spinning Up 구현이 이 방식을 쓴다.
+ \item 갱신된 정책으로 1로 돌아간다. 이전 batch는 버린다(\emph{on-policy}).
+\end{enumerate}
+원 논문의 MuJoCo 설정은 rollout 길이 2048, \(\epsilon=0.2\), \(\gamma=0.99\), \(\lambda=0.95\), epoch 10, minibatch 64, 학습률 \(3\times10^{-4}\)이다 \cite{ppo}. 이는 출발점일 뿐 현재 환경의 최적 값은 아니다.
+
+\subsection{구현 세부와 action masking}
+PPO의 성능은 목적함수만큼 구현 세부에 좌우된다 \cite{ppo-details,whatmatters}. 이 프로젝트와 관련이 큰 항목은 다음과 같다.
+\begin{itemize}
+ \item \textbf{Advantage 정규화}: minibatch 안에서 \(\widehat A\)를 평균 0, 표준편차 1로 맞춘다. 실험 조건마다 보상 크기가 달라도 정책 gradient의 크기가 비슷하게 유지된다.
+ \item \textbf{관측·보상 정규화와 gradient clipping}: 입력과 return의 크기를 일정하게 유지하고, gradient norm을 제한해 한 번의 큰 업데이트를 막는다.
+ \item \textbf{Value clipping}: 일부 구현은 가치함수 업데이트도 clipping하지만, 대규모 비교 연구 \cite{whatmatters}에서는 성능을 개선하지 못하거나 오히려 해칠 수 있다고 보고되었다.
+ \item \textbf{Invalid action masking}: 선택할 수 없는 행동(이 게임에서는 cooldown 중인 공격, 맵 밖으로의 이동 등)의 logit을 매우 작은 값으로 바꾼 뒤 softmax를 취한다. rollout 때와 업데이트 때 \emph{같은 mask}로 \(\log\pi\)를 계산해야 importance ratio가 올바르다 \cite{masking}.
+\end{itemize}
+
+\subsection{해석과 한계}
+TRPO와 마찬가지로 이산·연속 행동 모두에 적용할 수 있으며, 일차 최적화만으로 구현할 수 있어 훨씬 간단하다. 다만 on-policy이므로 데이터 수집 비용이 크고, 보상 설계, 가치함수 및 advantage 추정 방식, 위의 구현 세부가 결과에 크게 영향을 준다.
+
+\section{Soft Actor-Critic (SAC)}\label{sec:sac}
+\noindent\textbf{출처:} \url{https://spinningup.openai.com/en/latest/algorithms/sac.html} \cite{spin-sac}; 원 논문 \cite{sac,sac-apps}.
+
+\subsection{최대 엔트로피 강화학습}
+SAC는 off-policy actor--critic으로, 기대 수익뿐 아니라 policy 엔트로피도 함께 최대화한다.
+\begin{equation}
+ J(\pi)=\E_{\tau\sim\pi}\left[\sum_{t\ge0}\gamma^t\left(r_t+\alpha\mathcal H(\pi(\cdot\mid s_t))\right)\right],
+ \qquad\mathcal H(\pi(\cdot\mid s))=-\E_{a\sim\pi}\log\pi(a\mid s).
+\end{equation}
+\(\alpha\)는 탐색 다양성과 기대 보상 사이의 균형을 조절한다. 정책이 너무 일찍 하나의 행동으로 굳어 나쁜 국소 최적에 수렴하는 현상을 줄이려는 접근이다.
+
+\subsection{Q-learning과 policy 업데이트}
+Replay buffer \(\mathcal D\)에서 transition을 샘플링하고, 두 Q function을 사용하는 clipped double-Q target을 적용한다.
+\begin{align}
+ y&=r+\gamma(1-d)\left[\min_{j=1,2}Q_{\bar\phi_j}(s',\tilde a')-\alpha\log\pi_\theta(\tilde a'\mid s')\right],\\
+ &\hspace{6em}\tilde a'\sim\pi_\theta(\cdot\mid s'),\\
+ L_{Q_j}&=\E_{(s,a,r,s',d)\sim\mathcal D}\left[(Q_{\phi_j}(s,a)-y)^2\right].
+\end{align}
+Policy는 buffer의 상태 \(s\sim\mathcal D\)에서 \emph{현재 policy로 새로 샘플링한} 행동을 사용해 다음을 최대화한다.
+\begin{gather}
+ \E_{s\sim\mathcal D,\ \xi\sim\mathcal N(0,I)}\Bigl[\min_{j=1,2}Q_{\phi_j}\bigl(s,\tilde a_\theta(s,\xi)\bigr)-\alpha\log\pi_\theta\bigl(\tilde a_\theta(s,\xi)\mid s\bigr)\Bigr],\\
+ \tilde a_\theta(s,\xi)=\tanh\bigl(\mu_\theta(s)+\sigma_\theta(s)\odot\xi\bigr).
+\end{gather}
+Buffer에 저장된 행동 \(a\)가 아니라 \(\tilde a_\theta\)를 쓰는 것이 핵심이다. Reparameterization 덕분에 Q를 거쳐 정책 파라미터까지 gradient가 전달된다. Spinning Up이 설명하는 최신 형태는 별도 state-value function 없이 두 Q 함수와, polyak 평균으로 갱신하는 target network를 이용한다. Spinning Up 구현은 \(\alpha\)를 고정하지만, 후속 논문 \cite{sac-apps}은 목표 entropy를 정해 \(\alpha\)를 자동으로 조정하는 방법을 제안한다.
+
+\subsection{적용 조건}
+SAC의 장점은 off-policy 재사용과 명시적 엔트로피 보너스다. 다만 \textbf{Spinning Up의 SAC 구현은 continuous action space용}이며 \(\tanh\)-squashed Gaussian policy(쉽게 말해 그냥 Gaussian policy)를 전제로 한다. 이산 행동을 사용하는 이 게임에는 이 구현을 그대로 가져올 수 없다. 정책이 행동별 확률을 직접 출력하고, 기댓값을 행동에 대해 정확히 합산하는 discrete SAC 변형 \cite{sac-discrete}이 필요하다. 따라서 본 문서에서는 PPO의 직접 대안이라기보다 탐색과 replay를 이해하기 위한 비교 대상으로 놓는다.
+
+\section{Group Relative Policy Optimization (GRPO)}\label{sec:grpo}
+\noindent\textbf{출처:} DeepSeek-R1, Section 2.1--2.2 및 Appendix A.3, \url{https://arxiv.org/pdf/2501.12948} \cite{deepseek-r1}; 최초 제안은 DeepSeekMath \cite{deepseekmath}.
+
+\subsection{PPO와의 차이}
+GRPO는 DeepSeekMath \cite{deepseekmath}에서 수학 추론 학습을 위해 처음 제안되었고, DeepSeek-R1이 이를 대규모로 사용했다. DeepSeek-R1에서의 GRPO는 같은 질문 \(q\)에 대해 이전 정책으로 여러 개의 답변 \(o_1,\dots,o_G\)을 생성하고, 답변에 부여된 보상의 상대적 크기로 advantage를 구성한다. PPO의 학습된 value model/GAE 대신, 같은 질문에서 나온 \emph{여러 rollout의 비교}를 사용한다.
+\begin{equation}
+ \overline r_q=\frac1G\sum_{i=1}^G r_i,\qquad
+ \widehat A_i=\frac{r_i-\overline r_q}{\operatorname{std}(r_1,\dots,r_G)}.
+\end{equation}
+모든 응답의 보상이 같으면 분자 \(r_i-\overline r_q\)가 0이 되어 advantage가 모두 0이 된다(구현에서는 분모에 작은 상수를 더해 0으로 나누는 것을 막는다). 그러면 그 질문은 KL 항 외에는 학습 신호를 주지 않는다. 해당 문제는 정답/오답처럼 보상이 이진일 때 자주 생기며, 이 문제는 DAPO의 dynamic sampling(\S\ref{sec:dapo})에서 다시 등장한다.
+
+\subsection{목적함수와 KL 항}
+DeepSeek-R1의 Section 2.1은 개별 답변 \(o_i\)에 대한 정책 확률비 \(\rho_i=\pi_\theta(o_i\mid q)/\pi_{\mathrm{old}}(o_i\mid q)\)와 group advantage를 사용해 아래 형태를 제시한다.
+\begin{equation}
+ J_{\mathrm{GRPO}}(\theta)=\E_{q,\{o_i\}}
+ \left[\frac1G\sum_{i=1}^G\left(
+ \min\!\left(\rho_i\widehat A_i,\clip(\rho_i,1-\epsilon,1+\epsilon)\widehat A_i\right)
+ -\beta\widehat{\KL}(\pi_\theta\|\pi_{\mathrm{ref}})\right)\right].
+\end{equation}
+본문에 사용된 KL 추정식은 해당 출력에 대해 다음과 같다.
+\begin{equation}
+ \widehat{\KL}=\frac{\pi_{\mathrm{ref}}(o_i\mid q)}{\pi_\theta(o_i\mid q)}
+ -\log\frac{\pi_{\mathrm{ref}}(o_i\mid q)}{\pi_\theta(o_i\mid q)}-1.
+\end{equation}
+이 식은 Schulman이 정리한 k3 추정량 \cite{kl-approx}으로, 항상 0 이상이며 \(o_i\)를 \(\pi_\theta\)에서 샘플링할 때 \(\KL(\pi_\theta\|\pi_{\mathrm{ref}})\)의 불편 추정량이다. \(\pi_{\mathrm{ref}}\)는 학습 중인 정책을 기준 정책과 비교하는 데 쓰인다. \emph{이 항은 Spinning Up에서 다루는 표준 PPO-Clip의 필수 구성요소가 아니다.} Appendix A.3은 특히 LLM RLHF 맥락의 PPO에서 토큰별 KL을 reward에 반영하는 방식과 GRPO에서 KL을 loss에 직접 넣는 방식을 비교한다.
+
+\subsection{응답 단위 표기와 토큰 단위 구현}
+위 식은 R1 논문의 표기를 따라 응답 전체의 확률비 \(\rho_i\)로 적었다. GRPO를 처음 정의한 DeepSeekMath \cite{deepseekmath}와 일반적인 구현은 토큰 단위로 계산한다. 응답 \(o_i\)의 \(t\)번째 토큰에 대한 확률비를 \(\rho_{i,t}\)라 하면, 각 응답 안에서 토큰 손실을 평균한 뒤 응답들에 대해 평균한다.
+\begin{equation}
+ J(\theta)=\E\left[\frac1G\sum_{i=1}^G\frac1{|o_i|}\sum_{t=1}^{|o_i|}\Bigl(\min\bigl(\rho_{i,t}\widehat A_i,\clip(\rho_{i,t},1-\epsilon,1+\epsilon)\widehat A_i\bigr)-\beta\,\widehat{\KL}_{i,t}\Bigr)\right].
+\end{equation}
+결과(outcome) 보상만 있으면 한 응답의 모든 토큰이 같은 advantage \(\widehat A_i\)를 갖는다. DAPO가 비교 대상으로 삼는 ``원래 GRPO''의 손실 집계가 이 형태다(\S\ref{sec:dapo}의 \(L_{\mathrm{sample}}\)).
+
+\subsection{GRPO의 정규화가 만드는 편향}
+Dr.~GRPO 논문 \cite{drgrpo}은 GRPO의 두 정규화가 편향을 만든다고 지적한다. 첫째, 표준편차로 나누면 보상이 거의 같은(너무 쉽거나 너무 어려운) 질문의 advantage가 커져 그런 질문의 가중치가 과도해진다. 둘째, 응답 길이 \(|o_i|\)로 나누면 틀린 긴 응답의 토큰 하나하나가 받는 벌점이 작아져, 오답 응답이 길어지는 경향이 생긴다. 이 논문은 두 정규화를 제거한 변형을 제안한다. 길이 정규화 문제는 DAPO의 token-level loss가 다루는 문제를 다른 각도에서 본 것이다.
+
+\subsection{Section 2의 보상 설계와 학습 맥락}
+DeepSeek-R1-Zero는 supervised fine-tuning 없이 RL로 출발하며, 정답 검증이 가능한 수학·코딩·논리 문제에 대해 규칙 기반 \emph{accuracy reward} 및 \emph{format reward}를 사용한다. 학습 과정에서 답변 길이 및 추론 행동이 변화했다는 관찰은 알고리즘이 사용된 환경을 설명하지만, 그 자체가 GRPO의 일반적인 성능 보장을 뜻하지는 않는다.
+
+\subsection{Appendix A.3: GRPO--PPO 비교}
+Appendix A.3이 제시하는 핵심 비교는 (i) learned value model 제거에 따른 메모리·연산 비용 감소, (ii) terminal reward와 긴 추론 과정에서의 value prediction 난점, (iii) KL 항을 반영하는 위치의 차이다. 해당 부록의 실험에서 PPO의 GAE \(\lambda\)를 잘 조정하면 GRPO와의 격차가 줄어든다는 점도 중요하다. 즉, \textbf{GRPO가 모든 문제에서 PPO보다 우월하다는 주장은 아니다.}
+
+\subsection{3인 팀과 ``group''의 구별}
+GRPO에서의 \emph{group}은 \textbf{하나의 입력 조건에서 샘플링한 여러 개의 대안 출력}을 뜻한다. 게임 안에서 공동 행동하는 \emph{3명의 팀원}과는 다른 개념이다. 다중 에이전트에 적용하려면 무엇을 동일 조건의 대안 rollout으로 정의할지 추가 모델링이 필요하므로, 3인 팀을 곧바로 GRPO의 \(G=3\)으로 대응시키면 안 된다. 이 프로젝트는 자체 시뮬레이터를 쓰므로 같은 seed와 같은 시작 상태에서 에피소드를 여러 번 반복하는 것은 가능하며, 이를 group으로 정의하는 것이 자연스럽다. 다만 이 방법은 에피소드 전체를 하나의 결과로 평가하므로, 256틱 동안의 개별 행동에 대한 credit assignment를 critic 없이 해결해 주지는 않는다.
+
+\section{DAPO: Decoupled Clip and Dynamic Sampling Policy Optimization}\label{sec:dapo}
+\noindent\textbf{출처:} 프로젝트 페이지 \url{https://dapo-sia.github.io/}, 기술 보고서 \url{https://arxiv.org/pdf/2503.14476} \cite{dapo}.
+
+\subsection{등장 배경}
+DAPO는 긴 chain-of-thought를 생성하는 LLM의 RL 학습에서 초기 GRPO 실험이 나타낸 \emph{entropy collapse}, 효율이 낮은 샘플, 응답 길이 편향 및 잘못된 종료 처리에 주목한다. 단일한 새로운 학습 원리라기보다 GRPO 계열 업데이트에 네 가지 실용적 변경을 결합한다. 이 논문은 기존 GRPO에서 참조 정책과의 KL penalty를 제거한 설정도 채택한다.
+
+\subsection{비대칭 clipping}
+PPO/GRPO의 대칭 clipping \([1-\epsilon,1+\epsilon]\)을
+\begin{equation}
+ \clip(\rho_{i,t},\,1-\epsilon_{\mathrm{low}},\,1+\epsilon_{\mathrm{high}})
+\end{equation}
+로 바꾸어 위쪽 허용 폭을 더 크게 설정한다. 논문은 확률이 낮은 탐색 토큰의 확률이 커지는 것이 지나치게 억제될 수 있다고 지적한다. 예를 들어 \(\epsilon=0.2\)이면 \(\pi_{\mathrm{old}}=0.01\)인 토큰은 한 번의 업데이트로 최대 0.012까지만 커질 수 있지만, \(\pi_{\mathrm{old}}=0.9\)인 토큰에는 상한 1.08이 사실상 제약이 되지 않는다. 즉 대칭 clipping은 이미 확률이 높은 토큰보다 확률이 낮은 탐색 토큰을 더 강하게 묶는다. 상한을 높이면 다양한 응답을 탐색할 여지를 늘릴 수 있다. 보고된 대표 설정은 \(\epsilon_{\mathrm{low}}=0.20\), \(\epsilon_{\mathrm{high}}=0.28\)이다. 이는 모든 환경에서의 최적 값이 아니라 논문의 실험 설정이다.
+
+\subsection{Dynamic Sampling: 유효한 집단 확보}
+같은 질문에 대한 \(G\)개 응답이 전부 정답이거나 전부 오답이면 보상 기반 group advantage의 정보량이 사라진다. DAPO는 이러한 질문 집단을 제외하고, 정답·오답이 섞여 있는 집단을 필요한 batch 크기가 될 때까지 추가 샘플링한다. 규칙 검증 \(\operatorname{is\_equivalent}(a,o_i)\)를 기준으로
+\begin{equation}
+ 0<\sum_{i=1}^G \ind\{\operatorname{is\_equivalent}(a,o_i)\}<G
+\end{equation}
+를 만족하는 집단을 학습에 사용하는 것이다. 추가 생성 비용이 들지만, 학습에 유효한 gradient를 갖는 샘플의 비율을 높이려는 목적이다.
+
+\subsection{Token-level Policy Gradient Loss}
+원래 GRPO의 손실 집계(\S\ref{sec:grpo})는 각 응답 안에서 token loss를 먼저 평균내고, 다음에 응답별 loss를 평균낸다. 그 결과 길이가 긴 응답 속의 각 토큰은 상대적으로 작은 가중치를 가진다. DAPO는 응답별 길이로 먼저 나누는 대신 전체 batch에 포함된 토큰 수로 나누어 토큰을 동등하게 반영한다.
+
+토큰별 확률비와 clipped 기여도를
+\begin{align}
+ \rho_{i,t}(\theta)&=\frac{\pi_\theta(o_{i,t}\mid q,o_{i,<t})}{\pi_{\mathrm{old}}(o_{i,t}\mid q,o_{i,<t})},\\
+ \ell_{i,t}(\theta)&=\min\left\{\rho_{i,t}\widehat A_i,
+ \clip(\rho_{i,t},1-\epsilon_{\mathrm{low}},1+\epsilon_{\mathrm{high}})\widehat A_i\right\}
+\end{align}
+라고 하면, 집계 방식의 차이는 다음과 같다.
+\begin{align}
+ L_{\mathrm{sample}}&=\frac1G\sum_{i=1}^G\frac1{|o_i|}\sum_{t=1}^{|o_i|}\ell_{i,t},\\
+ L_{\mathrm{token}}&=\frac{1}{\sum_{i=1}^G|o_i|}\sum_{i=1}^G\sum_{t=1}^{|o_i|}\ell_{i,t}.
+\end{align}
+긴 응답을 무조건 선호하는 목적은 아니다. 저품질 반복 표현에 대해서도 토큰 수준의 학습 신호가 충분히 적용되도록 하여, 응답 길이와 entropy의 불안정한 증가를 완화하려는 설계다 (의도는 그렇다는데 잘 모르겠다...).
+
+\subsection{Overlong Reward Shaping}
+길이 제한으로 응답이 잘린 경우 무조건 틀렸다고 벌점을 주면, 원래 좋은 추론 중이었던 출력에도 부정확한 reward가 할당될 수 있다. DAPO는 \emph{Overlong Filtering}(잘린 샘플의 loss masking)을 살펴보고, 경계 구간에서 점진적으로 패널티를 주는 \emph{Soft Overlong Punishment}도 제안한다.
+\begin{equation}
+ R_{\mathrm{length}}(y)=
+ \begin{cases}
+ 0,&|y|\le L_{\max}-L_{\mathrm{cache}},\\
+ \dfrac{L_{\max}-L_{\mathrm{cache}}-|y|}{L_{\mathrm{cache}}},& L_{\max}-L_{\mathrm{cache}}<|y|\le L_{\max},\\
+ -1,&|y|>L_{\max}.
+ \end{cases}
+\end{equation}
+이 추가 길이 보상은 정답 판정 보상에 더해진다. 효과와 필요성은 긴 \emph{생성 시퀀스}가 존재한다는 가정에 강하게 의존한다. 강화학습 일반의 관점에서는, 시간 제한으로 잘린 trajectory를 실패로 처리할지의 문제(\S\ref{sec:common}의 종료와 중단)와 같은 구조다.
+
+\subsection{실험 결과와 해석 범위}
+논문의 Qwen2.5-32B / AIME 2024 실험에서 naive GRPO의 \(\mathrm{avg@32}\) 정확도는 30, 전체 DAPO 구성은 50으로 보고된다. 단계별 적용 결과는 overlong filtering 36, clip-higher 38, soft overlong punishment 41, token-level loss 42, dynamic sampling 50으로 제시된다. 이 수치는 \emph{특정 LLM·데이터셋·실험 순서의 관찰}이며, 각 구성요소가 모든 환경에서 동일한 절대 성능 상승을 낸다는 의미는 아니다.
+
+\section{SDPO: Self-Distillation Policy Optimization (후보)}\label{sec:sdpo}
+\noindent\textbf{출처:} \url{https://self-distillation.github.io/SDPO}, 논문 \url{https://arxiv.org/abs/2601.20802} \cite{sdpo}.
+
+GRPO와 같은 scalar outcome reward 중심의 방법은 실패의 \emph{이유}를 충분히 활용하지 못할 수 있다. SDPO는 오류 메시지나 평가 피드백과 같은 \emph{rich feedback}을 조건으로 제공받은 현재 모델을 \emph{self-teacher}로 사용하고, 그 모델의 다음 토큰 분포를 원래 정책에 distillation한다. 외부 teacher나 명시적 reward model 없이 feedback을 보다 세밀한 학습 신호로 바꾸는 발상이다 (teacher, student를 모른다면 간단하게 지피티나 클로드에 질문한다).
+
+이 방법의 학습 단위는 텍스트 토큰과 피드백 조건부 분포다. 따라서 보상만 주어지는 작은 이산 행동 게임에 SDPO를 직접 적용할 수 있다고 전제해서는 안 된다. 현재 문헌 목록에서는 \textbf{연구 방향을 이해하기 위한 보류 후보}로만 둔다.
+
+\section{다중 에이전트 강화학습}\label{sec:marl}
+\noindent\textbf{출처:} 추가 문헌 \cite{gupta2017,terry2020,ippo,mappo,maddpg,coma,vdn,qmix,happo,mat,dial,commnet,tarmac,intention,lowe2019}.
+
+\subsection{문제 설정}
+에이전트 \(i=1,\dots,N\)은 전체 상태 \(s\) 대신 부분 관측 \(o^i\)를 받고, 모든 에이전트의 행동 \(\boldsymbol a=(a^1,\dots,a^N)\)이 함께 다음 상태를 정한다. 보상을 팀이 공유하는 이런 문제를 Dec-POMDP라 한다. 단일 에이전트와 비교해 다음 세 가지가 새로 생긴다.
+\begin{itemize}
+ \item \textbf{비정상성(non-stationarity)}: 에이전트 \(i\)의 입장에서는 팀원과 상대의 정책도 환경의 일부인데, 학습 중에 이들이 바뀌므로 전이 확률이 계속 변한다.
+ \item \textbf{Credit assignment}: 팀 보상을 모두가 똑같이 받으면 각 에이전트는 자기 행동이 결과에 얼마나 기여했는지 알기 어렵다. 다른 팀원이 성과를 내는 동안 아무것도 하지 않는 ``lazy agent''가 생길 수 있다.
+ \item \textbf{부분 관측}: 시야 밖의 팀원과 상대를 모르므로 관측만으로는 상태가 Markov가 아니다.
+\end{itemize}
+
+\subsection{Parameter sharing}
+팀원 모두가 하나의 policy network \(\pi_\theta\)를 공유하고, 모든 에이전트의 transition으로 같은 파라미터를 갱신한다 \cite{gupta2017}. 데이터 효율이 에이전트 수만큼 좋아지며, 관측이 다르면 같은 네트워크도 다르게 행동한다. 에이전트마다 다른 역할이 필요하면 에이전트 번호(one-hot)를 입력에 넣어 구별할 수 있다 \cite{terry2020}. 주의할 점은, 파라미터를 공유하면 개인 보상을 주는 조건도 ``서로 독립인 세 이기적 정책''과 같지 않다는 것이다. 결과는 ``파라미터를 공유하는 policy에서의 보상 설계 효과''로 해석해야 한다.
+
+\subsection{IPPO, MAPPO와 CTDE}
+\begin{itemize}
+ \item \textbf{IPPO}: 각 에이전트가 자기 관측 \(o^i\)만 보는 policy와 value function \(V(o^i)\)로 PPO를 수행한다. 팀원을 환경의 일부로 취급하는 단순한 방법이지만, StarCraft 협력 과제(SMAC)에서 강한 성능을 보였다 \cite{ippo}.
+ \item \textbf{MAPPO}: 정책은 그대로 \(o^i\)만 보지만, 학습 때만 쓰는 critic은 전체 상태 \(s\)를 입력으로 받는다 \cite{mappo}. 이렇게 \emph{학습은 중앙에서, 실행은 분산해서} 하는 방식을 CTDE(centralized training with decentralized execution)라 한다 \cite{maddpg}.
+\end{itemize}
+MAPPO 논문은 성능에 영향을 준 요인으로 value 정규화, critic 입력 구성, epoch와 minibatch 수, clipping 계수, 사망 에이전트 처리(death masking)를 꼽는다 \cite{mappo}. Death masking은 사망한 에이전트의 critic 입력을 에이전트 번호만 남긴 상수 벡터로 바꾸는 방법으로, 부활 대기가 있는 이 게임에서도 고려할 만하다.
+
+실험 설계 관점에서는 critic 입력이 실험 조건마다 달라지면 안 된다. 어떤 조건에서만 centralized critic을 쓰면, 결과 차이가 정보 구조 때문인지 critic 때문인지 구분할 수 없다.
+
+\subsection{Credit assignment}
+COMA \cite{coma}는 centralized critic \(Q(s,a)\)를 학습하고, 에이전트 \(i\)의 행동만 바꿔 본 반사실(counterfactual) baseline으로 advantage를 만든다. \(\tau^i\)는 에이전트 \(i\)의 관측·행동 이력이다.
+\begin{equation}
+ A^i(s,a)=Q(s,a)-\sum_{a'^i}\pi^i(a'^i\mid\tau^i)\,Q\bigl(s,(a^{-i},a'^i)\bigr).
+\end{equation}
+팀원의 행동 \(a^{-i}\)는 그대로 두고 자기 행동만 평균적인 선택으로 바꿨을 때보다 얼마나 나았는지를 측정하므로, 팀 보상 하나에서 각자의 기여를 분리하려는 시도다. 가치 기반 방법에서는 팀 가치 \(Q_{\mathrm{tot}}\)를 에이전트별 가치의 합(VDN \cite{vdn})이나 단조 결합(QMIX \cite{qmix})으로 분해하는 접근이 있다. 이 프로젝트의 기본 학습기는 PPO이므로, 이들은 팀 보상의 credit assignment 문제가 실제로 관찰될 때 참고할 대안이다.
+
+\subsection{순차 결정}
+\begin{itemize}
+ \item \textbf{HAPPO/HATRPO} \cite{happo}: 다중 에이전트 advantage 분해 정리
+ \begin{equation}
+ A_\pi^{i_{1:m}}\bigl(s,\boldsymbol a^{i_{1:m}}\bigr)=\sum_{j=1}^m A_\pi^{i_j}\bigl(s,\boldsymbol a^{i_{1:j-1}},a^{i_j}\bigr)
+ \end{equation}
+ 를 이용한다. 여러 에이전트의 공동 행동 advantage를, 앞 순서 에이전트들의 행동이 정해졌을 때 각 에이전트가 더하는 advantage의 합으로 나눈 것이다. 이를 바탕으로 \emph{policy update}를 무작위 순서에 따라 에이전트별로 차례로 수행하며, 파라미터를 공유하지 않는 이질적 에이전트에서도 단조 개선을 보인다. 실행할 때는 모든 에이전트가 동시에 행동한다.
+ \item \textbf{Multi-Agent Transformer(MAT)} \cite{mat}: 위 분해를 \emph{행동 선택}에 직접 적용한다. 모든 에이전트의 관측을 encoder로 처리하고, decoder가 \(a^{i_1},a^{i_2},\dots\)를 자기회귀적으로 생성한다. 즉 \(m\)번째 에이전트는 앞 에이전트들의 이번 스텝 행동을 보고 결정한다. PPO 형태의 clipped objective로 학습한다.
+\end{itemize}
+이 프로젝트의 순차 결정 조건은 실행 시점의 순차성이므로 MAT에 가깝다. 다만 MAT는 모든 관측을 한 모델이 보는 중앙 실행 구조이고, 이 프로젝트는 각 에이전트가 자기 관측과 앞 순번의 정보만 보는 구조라는 차이가 있다.
+
+\subsection{Learned Communication}
+\begin{itemize}
+ \item \textbf{RIAL/DIAL} \cite{dial}: RIAL은 메시지를 또 하나의 이산 행동으로 보고 강화학습으로 학습한다. DIAL은 중앙 학습 중에 메시지를 실수 값으로 전달해, 받는 쪽의 gradient가 보내는 쪽까지 흐르게 한다. 실행할 때는 메시지를 이산화한다.
+ \item \textbf{CommNet} \cite{commnet}: 에이전트들의 latent state 평균을 연속 메시지로 공유하며, 여러 라운드의 communication을 한 네트워크 안에서 미분 가능하게 학습한다.
+ \item \textbf{TarMAC} \cite{tarmac}: 보내는 쪽이 key(signature)를, 받는 쪽이 query를 만들어 attention으로 누구의 메시지를 얼마나 볼지 정한다. 여러 라운드 통신을 지원한다.
+ \item \textbf{Intention Sharing} \cite{intention}: 각 에이전트가 self policy와 근사 환경 모델로 앞으로의 짧은 궤적(의도)을 상상해 공유하고, attention으로 중요한 부분을 골라 쓴다. 이 프로젝트의 의도 공유 조건과 가장 가깝다.
+\end{itemize}
+Communication을 학습했다고 해서 메시지가 실제로 쓰였다는 보장은 없다 \cite{lowe2019}. 메시지가 보내는 쪽의 행동이나 관측과 상관이 있는지(positive signaling)와, 받는 쪽의 행동을 실제로 바꾸는지(positive listening)를 따로 확인해야 한다. 가장 간단한 검증은 학습 후 메시지를 지우거나 다른 에피소드의 메시지로 바꿨을 때 성능과 행동이 달라지는지 보는 것이다. 또한 메시지에 구속력이 없고 정직하게 보낼 유인이 없으면 메시지가 무의미해질 수 있다(cheap talk). 팀이 보상을 공유할수록 정직한 신호를 보낼 유인이 크다.
+
+\section{Reward 설계: shaping과 시간 제한}\label{sec:reward}
+\subsection{Potential-based reward shaping}
+원래 보상 \(r\)에 상태의 함수 \(\Phi\)로 만든 항
+\begin{equation}
+ F(s,s')=\gamma\Phi(s')-\Phi(s)
+\end{equation}
+를 더해도 최적 정책은 바뀌지 않는다 \cite{ng1999}. 이 형태가 아닌 shaping은 최적 정책을 바꿀 수 있다. 직관적으로는 할인된 합이 telescoping으로 상쇄되기 때문이다.
+\begin{equation}
+ \sum_{t=0}^{T-1}\gamma^t F(s_t,s_{t+1})=\gamma^T\Phi(s_T)-\Phi(s_0).
+\end{equation}
+중간 경로는 사라지고 처음과 마지막 상태만 남는다. 따라서 다음 두 경우를 구별해야 한다.
+\begin{itemize}
+ \item 종료 상태에서 \(\Phi(s_T)=0\)으로 두면 shaping은 return에 상수 \(-\Phi(s_0)\)만 더하므로 원래 목표가 그대로 보존된다.
+ \item \(\Phi(s_T)\)를 그대로 두면 목표에 마지막 상태의 값 \(\gamma^T\Phi(s_T)\)가 더해진다. 여전히 마지막 상태로만 정해지는 목표이지만, 원래 목표와 같지는 않다.
+\end{itemize}
+식 안의 \(\gamma\)는 학습에 쓰는 discounting ratio와 같아야 한다. \(\gamma\)를 빼고 \(\Phi(s')-\Phi(s)\)만 쓰면 \(\gamma<1\)에서 합이 깔끔하게 상쇄되지 않는다.
+
+Shaping 항은 매 스텝 바로 들어오므로, bootstrapping을 쓰는 학습(GAE의 \(\lambda<1\), TD 학습)에서 즉각적인 신호가 된다. 반대로 \(\lambda=1\)인 Monte Carlo return에서는 \(t\) 이후 shaping 항의 합이 \(\gamma^{T-t}\Phi(s_T)-\Phi(s_t)\)로 정리된다. \(\Phi(s_T)=0\)이면 이것은 상태만의 함수이므로 baseline을 바꾸는 효과에 가깝다. Potential-based shaping이 Q 함수를 \(\Phi\)로 초기화하는 것과 동등하다는 결과 \cite{wiewiora2003}도 같은 맥락이다. 다중 에이전트 일반합 게임에서도 potential-based shaping은 Nash equilibrium의 집합을 바꾸지 않는다 \cite{devlin2011}.
+
+\subsection{Territory 보상과 변화량 보상}
+영역처럼 ``얼마나 갖고 있는가''를 나타내는 양 \(\Phi(s)\)가 있을 때, 매 틱 보상을 \(\Phi(s_t)\) 자체(점유한 땅의 넓이)로 줄 수도 있고 \(\gamma\Phi(s_{t+1})-\Phi(s_t)\)(변화량)로 줄 수도 있다. 둘은 같은 정보를 쓰지만 목표가 다르다. 보유량 보상의 return은 \(\sum_t\gamma^t\Phi(s_t)\)이므로 ``에피소드 내내 많이 보유하기''를 최적화한다. 예를 들어 중반에 잠시 영역을 내주고 마지막에 크게 되찾는 전략은 손해로 학습된다. 변화량 보상은 위의 telescoping 때문에 마지막 상태만 남는다. 따라서 승패를 마지막 시점에 판정한다면 변화량 형태가 승리 목표와 일치하고, 보유량 형태는 승리 규칙을 누적 점유율 기준(오버워치 점령전과 같은 방식)으로 바꿀 때 일치한다.
+
+\subsection{시간 제한}
+\S\ref{sec:common}에서 정리했듯이, 승패가 정해지는 종료 틱은 termination으로, 학습 편의상 자른 rollout은 truncation으로 처리한다 \cite{timelimits}. 시간 제한이 과제의 일부라면 남은 시간을 관측에 넣는다.
+
+\section{프로젝트와의 관계}\label{sec:project}
+\subsection{환경 (2026.10.31 마지막 수정)}
+저장소의 \texttt{env.md}가 정의하는 게임은 다음과 같다. 세부 규칙과 아직 정하지 않은 규칙은 저장소 문서를 따른다.
+\begin{itemize}
+ \item \(n\times m\) 타일맵(구현 기본값 \(12\times16\))을 반으로 나누어 두 팀이 시작한다. 팀의 영역은 소유한 타일 수다.
+ \item 한 틱에 각 에이전트는 이동 4방향, 인접 타일 공격 4방향, 정지 중 하나를 고른다. 공격한 다음 틱에는 공격할 수 없다.
+ \item 같은 타일을 여러 에이전트가 공격하면 팀별 공격 수가 많은 쪽으로 소유권이 바뀌고, 같으면 유지된다.
+ \item 자기 팀 영역이 아닌 칸에 서 있으면 사망하고, 일정 시간 뒤(구현 기본값 2틱) 자기 영역 안에서 부활한다.
+ \item 종료 틱 \(T\)(구현 기본값 256)에 영역이 넓은 팀이 이긴다.
+\end{itemize}
+
+\subsection{실험 조건}
+정보 구조 3가지와 보상 목표 2가지를 조합한 6개 조건을 비교한다.
+\begin{center}
+\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{36mm}|p{46mm}|p{46mm}|}
+\hline
+ & \textbf{T: 팀 승리 우선} & \textbf{S: 개인 생존 우선}\\ \hline
+\textbf{A. 독립 결정} & A-T & A-S\\ \hline
+\textbf{B. 순차 결정} & B-T & B-S\\ \hline
+\textbf{C. 의도 공유} & C-T & C-S\\ \hline
+\end{tabular}
+\end{center}
+
+정보 구조 축은 다음과 같다.
+\begin{itemize}
+ \item \textbf{A. 독립 결정}: 세 에이전트가 같은 시점의 관측만 보고 동시에 다음 행동을 정한다.
+ \item \textbf{B. 순차 결정}: 에이전트에 1, 2, 3 순서를 정한다. 1은 독자적으로 행동하고, 2는 1의 행동과 그에 따른 다음 상태를 보고, 3은 1과 2의 행동 이후 변화된 상태를 보고 행동을 정한다.
+ \item \textbf{C. 의도 공유}: 각 에이전트가 행동하기 전에 다음 행동을 공유 메모리에 먼저 제시한다. 제시된 의도를 바탕으로 한 feedback loop로 각 에이전트에 학습 신호를 주고, 이를 바탕으로 최종 행동을 정한다.
+\end{itemize}
+보상 축은 다음과 같다.
+\begin{itemize}
+ \item \textbf{T: 팀 승리 우선}: 모든 조건의 바탕이 되는 팀 보상(\S\ref{sec:reward-spec})만 준다.
+ \item \textbf{S: 개인 생존 우선}: 같은 팀 보상에, 에이전트 자신이 사망할 때의 패널티를 더한다.
+\end{itemize}
+S에서도 팀 승리 보상을 유지하는 이유는, 생존만 보상하면 전선에서 떨어진 내륙에 머무르는 정책이 거의 최적이 되기 때문이다. 이 게임에서는 적이 자기 영역에 인접한 칸만 공격할 수 있으므로, 전선에서 한 칸만 떨어져도 공격받지 않는다.
+
+\subsection{보상 명세 (2026.10.31 마지막 수정)}\label{sec:reward-spec}
+팀 \(k\)의 potential을 두 팀 영역 차이의 비율로 둔다. \(A_k(s)\)는 팀 \(k\)의 타일 수, \(M=nm\)은 전체 타일 수다.
+\begin{equation}
+ \Phi_k(s)=\frac{A_k(s)-A_{-k}(s)}{M}\in[-1,1],\qquad \Phi_k(s_0)=0.
+\end{equation}
+팀 \(k\)의 에이전트 \(i\)가 틱 \(t\)에서 \(t+1\)로 넘어갈 때 받는 보상은 다음과 같다.
+\begin{align}
+ r^{\mathrm{T}}_t&=\beta\bigl(\gamma\Phi_k(s_{t+1})-\Phi_k(s_t)\bigr)+\ind\{t+1=T\}\,z_k,\\
+ r^{\mathrm{S},i}_t&=r^{\mathrm{T}}_t-c\,\ind\{\text{에이전트 }i\text{가 틱 }t+1\text{에 사망}\}.
+\end{align}
+\(z_k\in\{+1,0,-1\}\)는 마지막 틱의 승·무·패다. 팀 보상 \(r^{\mathrm T}_t\)는 팀원 3명에게 같은 값으로 주고(3으로 나누지 않는다), 부활을 기다리는 에이전트에게도 준다. 사망 패널티는 사망한 에이전트 자신만 받는다. 설계 근거와 권고는 다음과 같다.
+\begin{itemize}
+ \item \textbf{종료 상태의 \(\Phi\)} \TBD: \(\Phi(s_T)\)를 0으로 두지 않으면(\S\ref{sec:reward}) 학습 목표는 ``승패 \(+\ \beta\gamma\times\) 최종 영역 차이''가 된다. \(|\Phi|\le1\)이므로 \(\beta\le1\)이면 이김 \(>\) 비김 \(>\) 짐 순서가 유지된다. 최종 영역 차이는 평가 지표인 net territory share와 같고, 상대에게 계속 지는 학습 초반에도 덜 지는 법을 배울 수 있으므로 이 방식을 권고한다.
+ \item \textbf{사망 패널티 \(c\)} \TBD: 타일 하나가 바뀌면 \(\Phi\)는 \(2/M\)만큼 변한다(\(12\times16\) 맵에서 약 0.0104). \(c=\beta\cdot(2/M)\cdot k\)로 두면 ``한 번 죽는 비용 = 타일 \(k\)개''로 해석할 수 있다. 승리 보상 1은 타일 \(M/(2\beta)\)개(\(12\times16\) 맵, \(\beta=1\)이면 96개) 가치이므로, 에피소드당 예상 사망 횟수 \(\times\,k\)가 이에 가까워지면 생존이 승리보다 중요해진다. \(k\)는 pilot으로 정한다.
+ \item \textbf{$\bm{\gamma}$ 와 GAE} \TBD: 식 안의 \(\gamma\)는 PPO 학습의 \(\gamma\)와 같은 값을 쓴다. Shaping이 매 틱 신호를 주므로 \(\gamma=0.99\), \(\lambda=0.95\)로 시작할 수 있다. 다만 승패 \(z_k\)는 256틱 끝에 한 번 들어오므로 \(\gamma=0.995\), \(0.999\)도 비교한다.
+ \item \textbf{남은 시간}: 같은 영역 차이라도 남은 시간에 따라 가치가 다르므로 남은 틱 수를 관측에 포함한다. 현재 저장소 구현의 관측에는 이미 포함되어 있다.
+\end{itemize}
+
+\subsection{학습 알고리즘의 기본 선택 (2026.10.31 마지막 수정)}
+\begin{itemize}
+ \item 기본 학습기는 parameter-sharing PPO(IPPO)다. MAPPO의 centralized critic은 확장 후보이며, 쓴다면 6개 조건 모두에 같은 critic 입력을 쓴다.
+ \item 조건 간 차이는 \emph{정책의 입력과 구조}에만 둔다. PPO 업데이트 규칙, 하이퍼파라미터, 보상 계수, 학습 예산, 상대 분포, 평가 seed는 6개 조건에서 같게 둔다.
+ \item B에서는 순번이 다른 에이전트가 같은 네트워크를 쓰므로 순번을 입력에 넣는다(\S\ref{sec:marl}의 parameter sharing).
+ \item 공격 cooldown과 맵 경계 때문에 선택할 수 없는 행동은 action mask로 처리한다(\S\ref{sec:ppo}).
+\end{itemize}
+
+\subsection{확정 전에 정할 사항 (2026.10.31 마지막 수정)}
+\begin{itemize}
+ \item \textbf{A의 관측 범위} : A에 팀원의 위치와 직전 행동을 포함하면, B와 C는 ``이번 틱의 행동·의도 정보''만 추가로 얻어 조건 차이가 깔끔해진다. A를 자기 주변 관측만으로 두면 B와 C는 팀원 상태 정보까지 함께 얻게 되어 두 요인이 섞인다.
+ \item \textbf{B의 ``다음 상태''} \TBD: 이 게임은 공격 수 비교와 이동 충돌을 6명 동시 판정으로 처리하므로, 1의 행동에 따른 다음 상태는 상대 행동까지 알아야 정해진다. (i) 한 틱 안에서 실제로 순차 실행하면 동시 판정 규칙이 바뀌어, A와의 차이가 정보 때문인지 규칙 때문인지 분리할 수 없다. (ii) 동시 판정을 유지하고 앞 순번의 이번 틱 행동만 제공하면(MAT와 같은 구조) 규칙은 같게 유지된다. 순서를 고정할지 에피소드마다 섞을지도 정해야 한다.
+ \item \textbf{C의 메시지와 feedback loop} \TBD: 메시지 내용(다음 행동 하나, 행동 분포, 목표 칸), 구속력(제안과 다른 행동을 할 수 있는지), 통신 라운드 수, 그리고 ``학습 신호''가 무엇인지(메시지를 통한 gradient 전달, 메시지를 행동처럼 PPO로 학습, 제안과 실행의 일치에 대한 추가 보상)를 정해야 한다. 추가 보상을 쓰면 C 조건에만 보상 항이 하나 더 생겨 보상 축의 통제가 깨진다. B와의 차이는, B는 앞 순번의 \emph{실제} 행동을 보고 C는 동시에 낸 \emph{제안} 행동을 본다는 점이다.
+ \item \textbf{정보 공유 메트릭} \TBD: 에이전트간 정보 공유는 크게 두 가지로 나눈다. Cross-attention-like method를 통해 각 모델의 parameter를 섞어주는 방식, 모델 끝에 head를 달아 feature를 추출한 뒤 섞어주는 방식, etc.
+ \item \textbf{보상 계수} \TBD: \(\beta\), \(c\)(또는 \(k\)), \(\gamma\), \(\lambda\). Pilot 후 고정한다.
+\end{itemize}
+
+\subsection{문헌에서 가져올 교훈}
+\begin{itemize}
+ \item \textbf{PPO와 구현 세부} (\S\ref{sec:ppo}): 기본 학습기다. Advantage 정규화와 action masking은 6개 조건 모두에 같게 적용한다.
+ \item \textbf{GAE와 DeepSeek-R1 A.3} (\S\ref{sec:common}, \S\ref{sec:grpo}): 승패는 종료 시점 보상이다. A.3에서 PPO의 \(\lambda\) 조정이 GRPO와의 격차를 줄였듯이, \(\gamma\)와 \(\lambda\)는 결과를 바꿀 수 있는 통제 변수로 기록한다.
+ \item \textbf{DAPO dynamic sampling} (\S\ref{sec:dapo}): 모든 응답이 오답이면 학습 신호가 사라지는 것처럼, 상대에게 전패하면 승패 신호가 사라진다. 상대의 강도를 단계적으로 올려 승률이 0과 1 사이에 머물게 한다.
+ \item \textbf{Clip-Higher와 entropy} (\S\ref{sec:dapo}, \S\ref{sec:sac}): 보상이 희소할수록 정책이 일찍 굳지 않게 탐색을 유지하는 장치가 중요하다. PPO에서는 entropy 계수가 이 역할을 한다.
+ \item \textbf{TRPO} (\S\ref{sec:trpo}): PPO의 clipping이 어떤 안정성 문제를 근사하는지 이해하는 이론적 배경이다.
+ \item \textbf{SAC, GRPO, SDPO}: 직접 사용하지 않는다. SAC는 off-policy·entropy 기반 탐색의 대조 사례이고, GRPO의 group은 팀원 집합이 아니며, SDPO는 텍스트 피드백을 전제로 한다.
+ \item \textbf{다중 에이전트 문헌} (\S\ref{sec:marl}): parameter sharing과 IPPO/MAPPO는 기본 구조, COMA는 팀 보상의 credit assignment 문제가 관찰될 때의 대안, MAT와 HAPPO는 B, 통신 문헌은 C의 설계 근거다. C는 학습 후 메시지 제거 실험으로 통신이 실제로 쓰였는지 확인한다 \cite{lowe2019}.
+ \item \textbf{Potential-based shaping} (\S\ref{sec:reward}): 승리 목표를 유지하면서 매 틱 신호를 주는 근거다.
+\end{itemize}
+
+\subsection{평가 관점}
+주 지표는 팀 승률과 최종 영역 차이(net territory share)다. 보조 지표로 에이전트별 사망 횟수와 생존 시간, 점령과 방어 사건, 이동 실패, 팀원 간 공격 중복을 기록한다. C에서는 메시지를 제거하거나 섞었을 때의 성능 변화도 기록한다. 상대 봇 유형, 학습 step, random seed를 통제하고, 학습에 쓰지 않은 상대와 좌우를 바꾼 맵에서도 평가한다. Proposal 초안은 최종 평가 상대로 사람 3명을 계획했으며, 유지 여부는 \TBD{}이다. 이들은 \emph{알고리즘 문헌에서 검증된 성과가 아니라 프로젝트의 실험 계획}에 해당한다.
+
+\section{종합 비교}
+\begin{center}
+\footnotesize
+\renewcommand{\arraystretch}{1.25}
+\begin{tabular}{|>{\raggedright\arraybackslash}p{19mm}|>{\raggedright\arraybackslash}p{15mm}|>{\raggedright\arraybackslash}p{18mm}|>{\raggedright\arraybackslash}p{42mm}|>{\raggedright\arraybackslash}p{40mm}|}
+\hline
+\textbf{방법} & \textbf{데이터} & \textbf{가치함수} & \textbf{학습 신호} & \textbf{프로젝트에서의 위치}\\ \hline
+TRPO & On-policy & \(V\) & GAE advantage, 평균 KL 제약 & PPO의 이론적 배경\\ \hline
+PPO & On-policy & \(V\) & GAE advantage, clipped surrogate & 기본 학습기\\ \hline
+SAC & Off-policy & 두 개의 \(Q\) & Soft Q target, entropy 최대화 & 대조 사례; Spinning Up 구현은 연속 행동용\\ \hline
+GRPO & On-policy & 없음 & 같은 입력의 출력 group 안에서 보상 정규화 & 직접 사용 안 함; group은 팀원 집합이 아님\\ \hline
+DAPO & On-policy & 없음 & GRPO + clip-higher, dynamic sampling, token-level loss, overlong shaping & 희소 보상·탐색 문제의 참고 사례\\ \hline
+SDPO & On-policy & 없음 & 피드백 조건부 self-teacher의 토큰 분포 distillation & 선택적 읽기 자료\\ \hline
+IPPO / MAPPO & On-policy & \(V(o^i)\) / \(V(s)\) & PPO, parameter sharing, CTDE & 기본 구조와 critic 선택\\ \hline
+HAPPO / MAT & On-policy & 중앙 \(V\) & 순차 advantage 분해, 자기회귀 행동 선택 & 조건 B의 근거\\ \hline
+DIAL, TarMAC, Intention Sharing & 방법별로 다름 & 방법별로 다름 & 학습된 메시지(RL 또는 미분 가능한 채널) & 조건 C의 근거\\ \hline
+\end{tabular}
+\end{center}
+
+\section{추가로 읽을 문헌과 우선순위}\label{sec:reading}
+\begin{enumerate}
+ \item \textbf{실험 시작 전 필수}: PPO 원 논문 \cite{ppo}, GAE \cite{gae}, PPO 구현 세부 \cite{ppo-details}, invalid action masking \cite{masking}, MAPPO \cite{mappo}, potential-based shaping \cite{ng1999}.
+ \item \textbf{조건 B·C 구현 전}: MAT \cite{mat}, HAPPO \cite{happo}, RIAL/DIAL \cite{dial}, TarMAC \cite{tarmac}, Intention Sharing \cite{intention}, 통신 측정의 함정 \cite{lowe2019}.
+ \item \textbf{결과 해석과 문제 해결 시}: IPPO \cite{ippo}, parameter sharing \cite{gupta2017,terry2020}, COMA \cite{coma}, VDN/QMIX \cite{vdn,qmix}, on-policy 구현 선택의 대규모 비교 \cite{whatmatters}, 시간 제한 처리 \cite{timelimits}, 다중 에이전트 shaping \cite{devlin2011}, shaping과 Q 초기화의 관계 \cite{wiewiora2003}.
+ \item \textbf{지정 자료의 배경}: TRPO 원 논문 \cite{trpo}, SAC 원 논문과 후속 연구 \cite{sac,sac-apps,sac-discrete}, DeepSeekMath \cite{deepseekmath}, Dr.~GRPO \cite{drgrpo}, KL 근사 \cite{kl-approx}, CTDE의 대표 사례 MADDPG \cite{maddpg}.
+\end{enumerate}
+
+\renewcommand{\refname}{참고 문헌 및 직접 링크}
+\begingroup
+\raggedright
+\begin{thebibliography}{99}
+\bibitem{spin-trpo} OpenAI. \emph{Spinning Up: Trust Region Policy Optimization}. \url{https://spinningup.openai.com/en/latest/algorithms/trpo.html}.
+\bibitem{spin-ppo} OpenAI. \emph{Spinning Up: Proximal Policy Optimization}. \url{https://spinningup.openai.com/en/latest/algorithms/ppo.html}.
+\bibitem{spin-sac} OpenAI. \emph{Spinning Up: Soft Actor-Critic}. \url{https://spinningup.openai.com/en/latest/algorithms/sac.html}.
+\bibitem{deepseek-r1} DeepSeek-AI. \emph{DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning}. arXiv:2501.12948. \url{https://arxiv.org/pdf/2501.12948}. Section 2 및 Appendix A.3 참조.
+\bibitem{dapo} Q. Yu et al. \emph{DAPO: An Open-Source LLM Reinforcement Learning System at Scale}. arXiv:2503.14476, 2025. \url{https://dapo-sia.github.io/}; \url{https://arxiv.org/pdf/2503.14476}.
+\bibitem{sdpo} J. H\"ubotter et al. \emph{Reinforcement Learning via Self-Distillation}. arXiv:2601.20802. \url{https://self-distillation.github.io/SDPO}; \url{https://arxiv.org/abs/2601.20802}.
+\bibitem{repo} CS30707 Team 1. \emph{Project Repository}. \url{https://github.com/a11cho/2026F_CS30707_Team_1}.
+\bibitem{trpo} J. Schulman et al. \emph{Trust Region Policy Optimization}. ICML 2015. arXiv:1502.05477.
+\bibitem{ppo} J. Schulman et al. \emph{Proximal Policy Optimization Algorithms}. arXiv:1707.06347, 2017.
+\bibitem{gae} J. Schulman et al. \emph{High-Dimensional Continuous Control Using Generalized Advantage Estimation}. ICLR 2016. arXiv:1506.02438.
+\bibitem{ppo-details} S. Huang et al. \emph{The 37 Implementation Details of Proximal Policy Optimization}. ICLR Blog Track, 2022. \url{https://iclr-blog-track.github.io/2022/03/25/ppo-implementation-details/}.
+\bibitem{whatmatters} M. Andrychowicz et al. \emph{What Matters in On-Policy Reinforcement Learning? A Large-Scale Empirical Study}. ICLR 2021. arXiv:2006.05990.
+\bibitem{masking} S. Huang, S. Onta\~n\'on. \emph{A Closer Look at Invalid Action Masking in Policy Gradient Algorithms}. FLAIRS 2022. arXiv:2006.14171.
+\bibitem{sac} T. Haarnoja et al. \emph{Soft Actor-Critic: Off-Policy Maximum Entropy Deep Reinforcement Learning with a Stochastic Actor}. ICML 2018. arXiv:1801.01290.
+\bibitem{sac-apps} T. Haarnoja et al. \emph{Soft Actor-Critic Algorithms and Applications}. arXiv:1812.05905, 2018.
+\bibitem{sac-discrete} P. Christodoulou. \emph{Soft Actor-Critic for Discrete Action Settings}. arXiv:1910.07207, 2019.
+\bibitem{deepseekmath} Z. Shao et al. \emph{DeepSeekMath: Pushing the Limits of Mathematical Reasoning in Open Language Models}. arXiv:2402.03300, 2024.
+\bibitem{drgrpo} Z. Liu et al. \emph{Understanding R1-Zero-Like Training: A Critical Perspective}. arXiv:2503.20783, 2025.
+\bibitem{kl-approx} J. Schulman. \emph{Approximating KL Divergence}. Blog post, 2020. \url{http://joschu.net/blog/kl-approx.html}.
+\bibitem{gupta2017} J. K. Gupta, M. Egorov, M. Kochenderfer. \emph{Cooperative Multi-Agent Control Using Deep Reinforcement Learning}. AAMAS Workshops, 2017.
+\bibitem{terry2020} J. K. Terry et al. \emph{Revisiting Parameter Sharing in Multi-Agent Deep Reinforcement Learning}. arXiv:2005.13625, 2020.
+\bibitem{ippo} C. Schroeder de Witt et al. \emph{Is Independent Learning All You Need in the StarCraft Multi-Agent Challenge?} arXiv:2011.09533, 2020.
+\bibitem{mappo} C. Yu et al. \emph{The Surprising Effectiveness of PPO in Cooperative Multi-Agent Games}. NeurIPS 2022 Datasets and Benchmarks. arXiv:2103.01955.
+\bibitem{maddpg} R. Lowe et al. \emph{Multi-Agent Actor-Critic for Mixed Cooperative-Competitive Environments}. NeurIPS 2017. arXiv:1706.02275.
+\bibitem{coma} J. Foerster et al. \emph{Counterfactual Multi-Agent Policy Gradients}. AAAI 2018. arXiv:1705.08926.
+\bibitem{vdn} P. Sunehag et al. \emph{Value-Decomposition Networks for Cooperative Multi-Agent Learning}. AAMAS 2018. arXiv:1706.05296.
+\bibitem{qmix} T. Rashid et al. \emph{QMIX: Monotonic Value Function Factorisation for Deep Multi-Agent Reinforcement Learning}. ICML 2018. arXiv:1803.11485.
+\bibitem{happo} J. G. Kuba et al. \emph{Trust Region Policy Optimisation in Multi-Agent Reinforcement Learning}. ICLR 2022. arXiv:2109.11251.
+\bibitem{mat} M. Wen et al. \emph{Multi-Agent Reinforcement Learning is a Sequence Modeling Problem}. NeurIPS 2022. arXiv:2205.14953.
+\bibitem{dial} J. Foerster et al. \emph{Learning to Communicate with Deep Multi-Agent Reinforcement Learning}. NeurIPS 2016. arXiv:1605.06676.
+\bibitem{commnet} S. Sukhbaatar, A. Szlam, R. Fergus. \emph{Learning Multiagent Communication with Backpropagation}. NeurIPS 2016. arXiv:1605.07736.
+\bibitem{tarmac} A. Das et al. \emph{TarMAC: Targeted Multi-Agent Communication}. ICML 2019. arXiv:1810.11187.
+\bibitem{intention} W. Kim, J. Park, Y. Sung. \emph{Communication in Multi-Agent Reinforcement Learning: Intention Sharing}. ICLR 2021.
+\bibitem{lowe2019} R. Lowe et al. \emph{On the Pitfalls of Measuring Emergent Communication}. AAMAS 2019. arXiv:1903.05168.
+\bibitem{ng1999} A. Y. Ng, D. Harada, S. Russell. \emph{Policy Invariance under Reward Transformations: Theory and Application to Reward Shaping}. ICML 1999.
+\bibitem{wiewiora2003} E. Wiewiora. \emph{Potential-Based Shaping and Q-Value Initialization are Equivalent}. Journal of Artificial Intelligence Research 19, 2003.
+\bibitem{devlin2011} S. Devlin, D. Kudenko. \emph{Theoretical Considerations of Potential-Based Reward Shaping for Multi-Agent Systems}. AAMAS 2011.
+\bibitem{timelimits} F. Pardo et al. \emph{Time Limits in Reinforcement Learning}. ICML 2018. arXiv:1712.00378.
+\end{thebibliography}
+\endgroup
+\end{document}
