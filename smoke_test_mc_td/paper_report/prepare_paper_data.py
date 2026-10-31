@@ -21,22 +21,59 @@ def read_csv(path):
     return rows
 
 
+def verify_source_snapshot(run,repo):
+    """실행 당시 보존본을 검증합니다. 현재 코드의 이동·변경은 비교 결과로만 남깁니다."""
+    manifest=json.loads((run/"manifest.json").read_text(encoding="utf-8"))
+    snapshot=(run/"source_snapshot").resolve()
+    current_changes=[]
+    for name,digest in manifest["source_sha256"].items():
+        normalized=name.replace("\\","/")
+        saved=(snapshot/normalized).resolve()
+        current=(repo/normalized).resolve()
+        if not saved.is_relative_to(snapshot) or not current.is_relative_to(repo.resolve()):
+            raise ValueError(f"허용 범위를 벗어난 소스 경로: {name}")
+        if not saved.is_file() or hashlib.sha256(saved.read_bytes()).hexdigest()!=digest:
+            raise ValueError(f"실행 당시 소스 보존본이 없거나 해시가 다릅니다: {name}")
+        if not current.is_file():
+            current_changes.append(dict(path=name,status="moved_or_missing"))
+        elif hashlib.sha256(current.read_bytes()).hexdigest()!=digest:
+            current_changes.append(dict(path=name,status="changed"))
+    return dict(snapshot_verified=True,current_source_changes=current_changes)
+
+
+def find_previous_run(module_root,run_id="20261031T093149737642Z"):
+    """아카이브된 실행을 먼저 찾고 정리 전의 runs 경로도 지원합니다."""
+    candidates=sorted(module_root.glob(f"archive/*/runs/{run_id}"))
+    if len(candidates)>1:
+        raise ValueError(f"같은 이전 실행의 아카이브가 여러 개입니다: {run_id}")
+    if candidates:
+        return candidates[0]
+    previous=module_root/"runs"/run_id
+    if previous.is_dir():
+        return previous
+    raise FileNotFoundError(f"이전 실행을 runs 또는 archive/*/runs에서 찾지 못했습니다: {run_id}")
+
+
 def prepare(run,output):
     repo=run.parents[2]
-    sys.path.insert(0,str(repo))
+    manifest=json.loads((run/"manifest.json").read_text(encoding="utf-8"))
+    results=json.loads((run/"results.json").read_text(encoding="utf-8"))
+    verification=verify_source_snapshot(run,repo)
+    # 추론도 현재 코드가 아니라 검증한 실행 당시 소스를 별도 CLI 프로세스에서 사용합니다.
+    snapshot=(run/"source_snapshot").resolve()
+    sys.path.insert(0,str(snapshot))
     import numpy as np
     from territory_rl import ExperimentConfig
     from smoke_test_mc_td.config import RunConfig
     from smoke_test_mc_td.learning import TabularControl
     from smoke_test_mc_td.runner import evaluate,derived_seed
     from smoke_test_mc_td.viewer import ModelSimulation
-    manifest=json.loads((run/"manifest.json").read_text(encoding="utf-8"))
-    results=json.loads((run/"results.json").read_text(encoding="utf-8"))
+    import smoke_test_mc_td.learning as learning_module
+    if not Path(learning_module.__file__).resolve().is_relative_to(snapshot):
+        raise RuntimeError("재수집은 현재 학습 모듈이 미리 import되지 않은 별도 Python CLI 프로세스에서 실행하세요.")
     assert manifest["status"]=="complete" and len(results["groups"])==8
     output.mkdir(parents=True,exist_ok=True)
-    for name,digest in manifest["source_sha256"].items():
-        assert hashlib.sha256((run/"source_snapshot"/name).read_bytes()).hexdigest()==digest
-        assert hashlib.sha256((repo/name).read_bytes()).hexdigest()==digest
+    print(f"실행 소스 보존본 검증 완료 · 현재 코드 차이 {len(verification['current_source_changes'])}개 · 보존 소스로 추론",flush=True)
     cases=[]
     for group in results["groups"]:
         condition,algorithm=group["condition"],group["algorithm"]
@@ -90,13 +127,12 @@ def prepare(run,output):
                                mode=simulation.mode,checkpoint=str(path),checkpoint_sha256=case["checkpoint_sha256"],frames=frames))
         del simulation
         gc.collect()
-    previous=repo/"smoke_test_mc_td"/"runs"/"20261031T093149737642Z"
+    previous=find_previous_run(repo/"smoke_test_mc_td")
     previous_data=dict(manifest=json.loads((previous/"manifest.json").read_text(encoding="utf-8")),
                        results=json.loads((previous/"results.json").read_text(encoding="utf-8")))
-    old_start=previous.name
     previous_data["manifest_mtime_utc"]=(previous/"manifest.json").stat().st_mtime
     data=dict(run=str(run),manifest=manifest,cases=cases,baseline_test=baseline,
-              resources=read_csv(run/"resources.csv"),previous=previous_data,
+              resources=read_csv(run/"resources.csv"),previous=previous_data,source_verification=verification,
               generation=dict(training_performed=False,bootstrap_seed=20261031,bootstrap_samples=10000,
                               diagnostic_bank="validation master 20261031/domain40; first two pairs per opponent",
                               simulation_environment_seed=7,simulation_policy_seed=derived_seed(7,11)))
@@ -109,7 +145,15 @@ if __name__=="__main__":
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("run",type=Path)
     parser.add_argument("output",type=Path)
+    parser.add_argument("--verify-only",action="store_true",help="추론 없이 보존 소스와 아카이브 경로만 검증합니다.")
     args=parser.parse_args()
     if not args.output.resolve().is_relative_to(Path(__file__).resolve().parent):
         raise ValueError("자료는 smoke_test_mc_td 내부에만 저장할 수 있습니다.")
-    prepare(args.run.resolve(),args.output.resolve())
+    if args.verify_only:
+        run=args.run.resolve()
+        repo=run.parents[2]
+        result=verify_source_snapshot(run,repo)
+        result["previous_run"]=str(find_previous_run(repo/"smoke_test_mc_td"))
+        print(json.dumps(result,ensure_ascii=False,indent=2))
+    else:
+        prepare(args.run.resolve(),args.output.resolve())

@@ -70,7 +70,7 @@ def run_grid(config, output=None):
     def measure(name,function,condition,algorithm,seed):
         wall,cpu=time.perf_counter(),time.process_time()
         value=function()
-        from .profile_runs import memory
+        from .runtime_metrics import memory
         phase_rows.append(dict(phase=name,condition=condition,algorithm=algorithm,seed=seed,
                               wall_seconds=time.perf_counter()-wall,cpu_seconds=time.process_time()-cpu,**memory()))
         write_csv(output/"resources.csv",phase_rows)

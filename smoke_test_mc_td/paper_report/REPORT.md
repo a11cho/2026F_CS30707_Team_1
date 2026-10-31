@@ -252,7 +252,7 @@ $rlPython = 'C:\Users\dohyu\anaconda3\envs\rlTeam\python.exe'
 & $rlPython -B -m smoke_test_mc_td.viewer
 ```
 
-모델·설정·버전·소스 SHA256은 원본 manifest.json에 있고 실제 실행 소스는 source_snapshot/에 보존되어 있다. 자료 수집 시 snapshot과 현재 소스의 해시 일치를 확인했다. 원본 학습 로그·모델 파일은 수정하지 않았다.
+모델·설정·버전·소스 SHA256은 원본 manifest.json에 있고 실제 실행 소스는 source_snapshot/에 보존되어 있다. 최초 자료 수집 당시 현재 소스도 일치했으며, 정리 이후의 재수집은 보존본을 기준으로 검증하고 별도 CLI 프로세스에서 해당 보존 소스로 추론한다. 현재 코드의 이동·변경은 경고 정보로 기록하며 학습 당시 소스를 덮어쓰지 않는다. 원본 학습 로그·모델 파일은 수정하지 않았다. 이전 실행은 archive/legacy_20261031/runs/에 보관한다.
 
 ## 부록 C. 파일과 분석 재생성
 

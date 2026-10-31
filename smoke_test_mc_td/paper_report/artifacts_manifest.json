@@ -14,20 +14,20 @@
   "validation": "글꼴·그래프 육안 검사, 표 열 수·수치·원본 해시·GIF 기간·AVI 프레임과 인덱스 검사 통과",
   "files": {
     "build_paper_report.py": {
-      "bytes": 42688,
-      "sha256": "313793a5e7065b60cc15dbafeba377f586501aac602d4f32ddb1ad5faf35ec2a"
+      "bytes": 42986,
+      "sha256": "7610215c22311b316ca53966d0b03c273bd16ec4f93b6fc9e19acadff2212637"
     },
     "prepare_paper_data.py": {
-      "bytes": 6577,
-      "sha256": "bc3474fd64bede9ceedd05ea2bd87aed3657bbc3b213b96379398a0cd353b411"
+      "bytes": 9251,
+      "sha256": "0baf59452dafcb14c6660a9fecf1d152c41b20d407f9fef9e872fc37ea225c74"
     },
     "render_paper_videos.py": {
       "bytes": 8535,
       "sha256": "4075f9414ab31446eedeb69183fc610bb84a7c0509f0cab6709bf758cc8698bb"
     },
     "REPORT.md": {
-      "bytes": 29777,
-      "sha256": "0ac2774551594150d76ec2833a3b9743e080eb05c86159db477e786f3a4b18c6"
+      "bytes": 30075,
+      "sha256": "038a4e8a603a590a3a308226f150442994f5a19075f9b5dc1cebc11bf91b8d63"
     },
     "data\\diagnostics_long.csv": {
       "bytes": 84358,
@@ -141,5 +141,15 @@
       "bytes": 4138,
       "sha256": "86cdcce9a140f0fb9e332a2eb7ff1b9195889a5e6d035163053e38f05d35bffd"
     }
+  },
+  "maintenance": {
+    "kind": "archive_cleanup",
+    "training_performed": false,
+    "changed_artifacts": [
+      "REPORT.md",
+      "prepare_paper_data.py",
+      "build_paper_report.py"
+    ],
+    "figures_and_videos_unchanged": true
   }
 }

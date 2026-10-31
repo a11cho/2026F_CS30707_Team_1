@@ -21,17 +21,18 @@ $rlPython = 'C:\Users\dohyu\anaconda3\envs\rlTeam\python.exe'
 - 모델 1/3개인 기존 체크포인트: 학습 모델과 고정 정책으로 대결
 - 예전 한 명 학습 파일은 여섯 명 학습 모델이 아니므로 양 팀 모델 모드를 지원하지 않습니다.
 
-현재 전체 실행 `20261031T093149737642Z`는 한 명 학습 결과입니다. 여섯 명 모드는
-앞으로 양 팀 학습으로 저장하는 체크포인트에서 사용할 수 있습니다.
+최신 완료 실행은 `20261031T112320430780Z`이며 모델 여섯 개가 든 체크포인트입니다.
+Validation 기준 SARSA 대표 모델은 개인·local, 학습 seed 31입니다.
+이전 한 명 학습 결과는 `archive/legacy_20261031/runs/20261031T093149737642Z/`에 보관합니다.
 
 ## 2. 파일 경로를 지정해 바로 열기
 
-기존 실제 체크포인트를 여는 예시입니다. 한 명 모델은 선택 진영의 0번 에이전트를
-담당하고 같은 팀 나머지 두 명은 기존 방식대로 expand 정책을 사용합니다.
+최신 실제 체크포인트를 여는 예시입니다. 양 팀 모두 각자의 저장 모델로 대결하며
+학습은 수행하지 않습니다.
 
 ```powershell
-$checkpoint = 'smoke_test_mc_td/runs/20261031T093149737642Z/aware_individual_gross_b0/sarsa/seed_7/model.json.gz'
-& $rlPython -B -m smoke_test_mc_td.viewer $checkpoint --opponent random --seed 7
+$checkpoint = 'smoke_test_mc_td/runs/20261031T112320430780Z/local_individual_gross_b0/sarsa/seed_31/model.json.gz'
+& $rlPython -B -m smoke_test_mc_td.viewer $checkpoint --mode both --seed 7
 ```
 
 여섯 명 체크포인트에서는 경로만 지정해도 양 팀 대결이 됩니다. 또는 고정 상대와
@@ -103,3 +104,5 @@ $checkpoint = 'smoke_test_mc_td/runs/20261031T093149737642Z/aware_individual_gro
 검사 대상은 추론 중 모델·체크포인트 불변성, 기존 평가와 동일한 전이, seed 재현,
 렌더링 독립성, 1/3/6 모델 호환, UI 제어입니다. 기존 학습 테스트는 별도로
 `python -B -m unittest smoke_test_mc_td.test_smoke -v`로 실행합니다.
+
+최신 결과 보고서와 저장된 GIF/AVI는 [paper_report/REPORT.md](paper_report/REPORT.md)에서 확인할 수 있습니다.

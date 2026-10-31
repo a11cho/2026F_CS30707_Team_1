@@ -159,7 +159,7 @@ def train(config, experiment, algorithm, seed, progress=None):
                           probe_value_count=0 if probes is None else len(probe),
                           elapsed_wall_seconds=time.perf_counter()-wall_start,elapsed_cpu_seconds=time.process_time()-cpu_start,
                           diagnostic_eval_wall_seconds=eval_wall,diagnostic_eval_cpu_seconds=eval_cpu)
-        from .profile_runs import memory
+        from .runtime_metrics import memory
         diagnostic.update(memory())
         diagnostics.append(diagnostic)
         if progress:

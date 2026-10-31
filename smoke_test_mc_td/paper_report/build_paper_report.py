@@ -406,7 +406,7 @@ $rlPython = 'C:\\Users\\dohyu\\anaconda3\\envs\\rlTeam\\python.exe'
 # 저장된 모델 관전: 실행 후 model.json.gz 선택
 & $rlPython -B -m smoke_test_mc_td.viewer
 ```''')
-    add("모델·설정·버전·소스 SHA256은 원본 manifest.json에 있고 실제 실행 소스는 source_snapshot/에 보존되어 있다. 자료 수집 시 snapshot과 현재 소스의 해시 일치를 확인했다. 원본 학습 로그·모델 파일은 수정하지 않았다.")
+    add("모델·설정·버전·소스 SHA256은 원본 manifest.json에 있고 실제 실행 소스는 source_snapshot/에 보존되어 있다. 최초 자료 수집 당시 현재 소스도 일치했으며, 정리 이후의 재수집은 보존본을 기준으로 검증하고 별도 CLI 프로세스에서 해당 보존 소스로 추론한다. 현재 코드의 이동·변경은 경고 정보로 기록하며 학습 당시 소스를 덮어쓰지 않는다. 원본 학습 로그·모델 파일은 수정하지 않았다. 이전 실행은 archive/legacy_20261031/runs/에 보관한다.")
     add("## 부록 C. 파일과 분석 재생성")
     add("- `figures/`: 그림 1–8의 300dpi PNG와 SVG\n- `data/diagnostics_long.csv`: 모든 중간 진단 원자료\n- `data/untrained_test.csv`: 보고서 작성 시 추가 추론한 기준선\n- `data/paired_bootstrap.csv`: 기준선 대응 차이와 환경 pair 불확실성\n- `data/paper_data.json`: 원본 설정·학습·평가·자원 기록을 모은 분석 자료\n- `data/simulation_traces.json`: 모델별 최종 추론 상태열\n- `videos/`: GIF·AVI·포스터·재생 메타데이터\n- `prepare_paper_data.py`: rlTeam에서 원본 수집과 추론\n- `build_paper_report.py`: matplotlib/Pillow가 있는 Python에서 그래프·문서 생성\n- `render_paper_videos.py`: Pillow로 상태열을 GIF/MJPEG AVI로 렌더링")
     add("분석 코드와 원자료는 함께 제공하지만 Python 환경이 두 개다. rlTeam은 학습 환경·추론을 재현하고, 현재 기본 Anaconda Python은 matplotlib/Pillow로 그래프·영상을 만든다. 출력 영상은 플랫폼별 글꼴 차이가 있을 수 있으나 상태열과 모델 선택은 고정되어 있다. 모델 가중치의 중간 checkpoint를 저장하지 않았다는 한계는 재생성으로 해결되지 않는다.")
