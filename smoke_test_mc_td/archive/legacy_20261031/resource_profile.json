@@ -1,0 +1,121 @@
+{
+  "kind": "별도 대표 후보 재학습 측정",
+  "profiles": [
+    {
+      "checkpoint": "local_individual_gross_b0\\mc\\seed_31\\model.json.gz",
+      "algorithm": "mc",
+      "seed": 31,
+      "experiment": {
+        "observation_mode": "local",
+        "reward_mode": "individual",
+        "team_signal": "gross",
+        "terminal_bonus": 0.0
+      },
+      "training_episodes": 80,
+      "ticks": 2560,
+      "wall_seconds": 1.719908499973826,
+      "cpu_seconds": 1.671875,
+      "one_core_cpu_percent": 97.20720608250049,
+      "before": {
+        "working_set_bytes": 43589632,
+        "peak_working_set_bytes": 43589632,
+        "private_commit_bytes": 265728000
+      },
+      "after": {
+        "working_set_bytes": 44265472,
+        "peak_working_set_bytes": 44265472,
+        "private_commit_bytes": 265867264
+      },
+      "q_states": 1205,
+      "q_array_bytes": 86760,
+      "exact_q_reproduction": true
+    },
+    {
+      "checkpoint": "local_team_terminal_b1\\sarsa\\seed_7\\model.json.gz",
+      "algorithm": "sarsa",
+      "seed": 7,
+      "experiment": {
+        "observation_mode": "local",
+        "reward_mode": "team",
+        "team_signal": "terminal",
+        "terminal_bonus": 1.0
+      },
+      "training_episodes": 80,
+      "ticks": 2560,
+      "wall_seconds": 1.7577050999971107,
+      "cpu_seconds": 1.6875,
+      "one_core_cpu_percent": 96.00586583055222,
+      "before": {
+        "working_set_bytes": 42573824,
+        "peak_working_set_bytes": 43229184,
+        "private_commit_bytes": 264650752
+      },
+      "after": {
+        "working_set_bytes": 44187648,
+        "peak_working_set_bytes": 44187648,
+        "private_commit_bytes": 265764864
+      },
+      "q_states": 1243,
+      "q_array_bytes": 89496,
+      "exact_q_reproduction": true
+    },
+    {
+      "checkpoint": "aware_individual_gross_b0\\mc\\seed_31\\model.json.gz",
+      "algorithm": "mc",
+      "seed": 31,
+      "experiment": {
+        "observation_mode": "aware",
+        "reward_mode": "individual",
+        "team_signal": "gross",
+        "terminal_bonus": 0.0
+      },
+      "training_episodes": 80,
+      "ticks": 2560,
+      "wall_seconds": 1.9013565999921411,
+      "cpu_seconds": 1.8125,
+      "one_core_cpu_percent": 95.32667359755091,
+      "before": {
+        "working_set_bytes": 44843008,
+        "peak_working_set_bytes": 46182400,
+        "private_commit_bytes": 267026432
+      },
+      "after": {
+        "working_set_bytes": 47181824,
+        "peak_working_set_bytes": 47181824,
+        "private_commit_bytes": 269000704
+      },
+      "q_states": 2471,
+      "q_array_bytes": 177912,
+      "exact_q_reproduction": true
+    },
+    {
+      "checkpoint": "aware_individual_gross_b0\\sarsa\\seed_7\\model.json.gz",
+      "algorithm": "sarsa",
+      "seed": 7,
+      "experiment": {
+        "observation_mode": "aware",
+        "reward_mode": "individual",
+        "team_signal": "gross",
+        "terminal_bonus": 0.0
+      },
+      "training_episodes": 80,
+      "ticks": 2560,
+      "wall_seconds": 1.9931548000313342,
+      "cpu_seconds": 1.90625,
+      "one_core_cpu_percent": 95.63983690429023,
+      "before": {
+        "working_set_bytes": 45117440,
+        "peak_working_set_bytes": 46268416,
+        "private_commit_bytes": 267489280
+      },
+      "after": {
+        "working_set_bytes": 47329280,
+        "peak_working_set_bytes": 47329280,
+        "private_commit_bytes": 268771328
+      },
+      "q_states": 2480,
+      "q_array_bytes": 178560,
+      "exact_q_reproduction": true
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+phase,condition,algorithm,seed,wall_seconds,cpu_seconds,working_set_bytes,peak_working_set_bytes,private_commit_bytes
+training_including_diagnostics,local_individual_gross_b0,sarsa,7,0.13986980001209304,0.09375,47992832,48082944,265293824
+validation,local_individual_gross_b0,sarsa,7,0.03618070000084117,0.03125,48812032,48812032,265912320
+untrained_validation,local_individual_gross_b0,sarsa,7,0.04206870001507923,0.03125,48812032,48812032,265912320
+selected_test,local_individual_gross_b0,sarsa,7,0.03985950001515448,0.015625,48816128,48816128,265912320

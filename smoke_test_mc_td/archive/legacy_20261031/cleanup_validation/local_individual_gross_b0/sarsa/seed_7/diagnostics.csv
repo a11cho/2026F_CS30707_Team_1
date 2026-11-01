@@ -1,0 +1,4 @@
+episode,validation_score,validation_area,validation_known_fraction,validation_games,updates,q_states,state_action_pairs,mean_pair_visits,pairs_visited_at_least_twice,pairs_visited_at_least_five,mean_abs_target_error,mean_abs_q_update,max_abs_q_update,probe_mean_abs_q_change,probe_max_abs_q_change,probe_value_count,elapsed_wall_seconds,elapsed_cpu_seconds,diagnostic_eval_wall_seconds,diagnostic_eval_cpu_seconds,working_set_bytes,peak_working_set_bytes,private_commit_bytes
+0,0.5,0.5,0.0,4,0,0,0,0.0,0,0,0.0,0.0,0.0,0.0,0.0,0,0.034154699998907745,0.0,0.03406169998925179,0.0,47828992,48082944,265154560
+1,0.5,0.5,0.2708333333333333,4,24,23,24,1.0,0,0,0.0,0.0,0.0,0.0,0.0,207,0.09176600002683699,0.046875,0.034033300005830824,0.03125,47919104,48082944,265293824
+2,0.75,0.53125,0.3541666666666667,4,48,47,48,1.0,0,0,0.08333333333333333,0.008333333333333333,0.1,0.0,0.0,207,0.1351635999744758,0.09375,0.028091699990909547,0.03125,47992832,48082944,265293824

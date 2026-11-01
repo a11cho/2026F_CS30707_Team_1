@@ -1,0 +1,66 @@
+{
+  "condition": "local_individual_gross_b0",
+  "algorithm": "sarsa",
+  "seed": 7,
+  "checkpoint": "local_individual_gross_b0\\sarsa\\seed_7\\model.json.gz",
+  "validation": {
+    "score": 0.75,
+    "win": 0.75,
+    "draw": 0.0,
+    "area_fraction": 0.53125,
+    "mean_return": 0.25,
+    "deaths": 1.0,
+    "captures": 0.75,
+    "moves_failed": 2.5,
+    "games": 4,
+    "dead_fraction": 0.14583333333333334,
+    "known_state_fraction": 0.3541666666666667,
+    "learner_rejected": 0
+  },
+  "validation_by_cohort": {
+    "0": {
+      "score": 1.0,
+      "win": 1.0,
+      "draw": 0.0,
+      "area_fraction": 0.5625,
+      "mean_return": 0.3333333333333333,
+      "deaths": 0.5,
+      "captures": 1.0,
+      "moves_failed": 2.5,
+      "games": 2,
+      "dead_fraction": 0.08333333333333333,
+      "known_state_fraction": 0.2916666666666667,
+      "learner_rejected": 0
+    },
+    "1": {
+      "score": 0.5,
+      "win": 0.5,
+      "draw": 0.0,
+      "area_fraction": 0.5,
+      "mean_return": 0.16666666666666666,
+      "deaths": 1.5,
+      "captures": 0.5,
+      "moves_failed": 2.5,
+      "games": 2,
+      "dead_fraction": 0.20833333333333334,
+      "known_state_fraction": 0.4166666666666667,
+      "learner_rejected": 0
+    }
+  },
+  "untrained_validation": {
+    "score": 0.5,
+    "win": 0.5,
+    "draw": 0.0,
+    "area_fraction": 0.5,
+    "mean_return": 0.16666666666666666,
+    "deaths": 1.5,
+    "captures": 0.5,
+    "moves_failed": 2.5,
+    "games": 4,
+    "dead_fraction": 0.20833333333333334,
+    "known_state_fraction": 0.0,
+    "learner_rejected": 0
+  },
+  "updates": 48,
+  "q_states": 47
+}
