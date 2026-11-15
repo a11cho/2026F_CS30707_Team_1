@@ -1,4 +1,8 @@
-param([switch]$ManualAll)
+param(
+    [switch]$ManualAll,
+    [ValidateSet('independent', 'sequential', 'feedback')]
+    [string]$Strategy = 'independent'
+)
 $ErrorActionPreference = 'Stop'
 $projectPython = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $projectPython)) {
@@ -6,6 +10,6 @@ if (-not (Test-Path -LiteralPath $projectPython)) {
 }
 Push-Location $PSScriptRoot
 try {
-    if ($ManualAll) { & $projectPython -m territory_rl --manual-all }
-    else { & $projectPython -m territory_rl }
+    if ($ManualAll) { & $projectPython -m territory_rl --strategy $Strategy --manual-all }
+    else { & $projectPython -m territory_rl --strategy $Strategy }
 } finally { Pop-Location }

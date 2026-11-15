@@ -16,7 +16,7 @@ class KeyboardController:
               "space": Action.NOOP, " ": Action.NOOP}
 
     def __init__(self, keymap=None):
-        """키 이름→Action 매핑을 복사하고 다음 틱의 예약 행동을 비운다.
+        """키 이름→Action 매핑을 복사하고 다음 결정 회차의 예약 행동을 비운다.
         keymap을 생략하면 WASD 이동·방향키/IJKL 공격·Space 정지를 사용한다.
         """
         self.keymap = dict(self.KEYMAP if keymap is None else keymap)
@@ -39,7 +39,7 @@ class KeyboardController:
 
     def act(self, observation):
         """예약 행동을 한 번 반환한 뒤 비우며, 예약이 없으면 NOOP을 반환한다.
-        관측은 공통 인터페이스를 위해 받는다. 금지 행동도 코어가 거부 이벤트로 기록하도록 그대로 전달한다.
+        관측은 공통 인터페이스를 위해 받는다. 금지 행동도 수집기의 정규화 및 원요청 기록을 위해 그대로 전달한다.
         """
         action = self.pending if self.pending is not None else Action.NOOP
         self.clear()

@@ -14,25 +14,75 @@ from .reward import calculate_rewards
 
 
 class TerritoryEnvironment:
-    """Owns game state. All mutations occur in reset/step; no wall-clock logic."""
+    """물리 상태는 reset/step, 결정 버퍼는 명시적 수집 API에서만 갱신한다."""
 
     def __init__(self, config=None, experiment=None):
         """게임/실험 설정과 에피소드 식별자를 준비한다. 실제 맵·에이전트는 reset에서 생성한다."""
         self.config = config or GameConfig()
-        self.experiment = experiment or ExperimentConfig()
+        self._experiment = experiment or ExperimentConfig()
+        from .session import ActionCollector
+        self._collector = ActionCollector(self)
+        self.last_decision = []
         self.episode_id = 0
         self._initialized = False
+
+    @property
+    def experiment(self):
+        """에피소드 중 교체할 수 없는 실험 설정을 반환한다."""
+        return self._experiment
+
+    @property
+    def decision_strategy(self):
+        """환경에 저장된 현재 결정 전략을 반환한다."""
+        return self.experiment.decision_strategy
+
+    @property
+    def decision_round(self):
+        """현재 수집 회차를 반환한다. 수집 전/전이 후에는 0이다."""
+        return self._collector.round
+
+    @property
+    def next_decision_agent(self):
+        """수집 중 다음 제출자를 반환한다. 비활성 상태에서는 None이다."""
+        return self._collector.next_agent if self._collector.active else None
+
+    def begin_decision(self):
+        """환경 소유 수집기에서 새 틱의 결정을 시작한다."""
+        self._collector.begin()
+
+    def agent_session(self, team_id, agent_number):
+        """팀·번호를 검증하고 현재 회차 세션을 발급한다."""
+        return self._collector.session(self._agent_id(team_id, agent_number))
+
+    def finish_decision_round(self):
+        """되먹임 1차는 전이 없이 마감하고, 최종 회차는 한 틱을 실행한다."""
+        finished = self._collector.finish_round()
+        if finished is None:
+            return None
+        requested, trace = finished
+        self._collector.clear()
+        result = self.step(requested)
+        self.last_decision = trace
+        return result
+
+    @staticmethod
+    def _agent_id(team_id, agent_number):
+        """공개 API의 red/blue 및 팀 내 정수 번호 0..2를 내부 ID로 변환한다."""
+        if team_id not in ("red", "blue") or isinstance(agent_number, bool) or not isinstance(agent_number, Integral) or not 0 <= agent_number < 3:
+            raise ValueError("expected team red/blue and agent_number 0..2")
+        return f"{team_id}_{int(agent_number)}"
 
     def reset(self, seed=None, options=None):
         """새 에피소드 상태와 환경 전용 RNG를 만들고 초기 StateSnapshot을 반환한다.
 
         seed가 같으면 초기 배치와 이후 동일 행동열에 따른 무작위 부활을 재현할 수 있다.
-        options에는 테스트용 owner, agents, tick을 지정할 수 있으며 다른 키는 거부한다.
+        options에는 owner, agents, tick 및 새 에피소드의 decision_strategy를 지정할 수 있다.
         사용자 상태는 검증·복사한 뒤 반영하고 episode_id를 늘려 기존 세션을 무효화한다.
         """
         options = dict(options or {})
-        if set(options) - {"owner", "agents", "tick"}:
+        if set(options) - {"owner", "agents", "tick", "decision_strategy"}:
             raise ValueError("unsupported scenario option")
+        experiment = replace(self.experiment, decision_strategy=options.get("decision_strategy", self.decision_strategy))
         cfg = self.config
         rng = np.random.default_rng(seed)
         tile_map = TileMap(cfg.height, cfg.width, options.get("owner"))
@@ -56,6 +106,12 @@ class TerritoryEnvironment:
             right = [(r, cfg.width - 1 - c) for r, c in left]
             agents = {aid: AgentState(aid, i // 3, (left + right)[i]) for i, aid in enumerate(AGENT_IDS)}
         self._validate_state(tile_map, agents, tick)
+        if any(area == 0 and not any(a.alive and a.team == team for a in agents.values())
+               for team, area in enumerate(tile_map.areas())):
+            raise ValueError("scenario starts with an eliminated team")
+        self._experiment = experiment
+        self._collector.clear()
+        self.last_decision = []
         self._map, self._agents, self._rng = tile_map, agents, rng
         self.tick, self.terminated = tick, False
         self.episode_id += 1
@@ -113,7 +169,7 @@ class TerritoryEnvironment:
     def action_mask(self, aid):
         """aid가 다음 틱에 제출할 수 있는 행동을 길이 9의 int8 배열로 반환한다.
 
-        정지(0)는 항상 허용하며 사망 또는 경기 종료 상태에서는 정지만 남긴다.
+        정지 코드 1(마스크 인덱스 0)은 항상 허용하며 사망 또는 경기 종료 상태에서는 정지만 남긴다.
         경계와 본인 공격 cooldown만 검사한다. 점유 칸·적 타일도 같은 틱에
         비워지거나 아군이 점령할 수 있으므로 그 이유만으로 이동을 차단하지 않는다.
         """
@@ -124,15 +180,17 @@ class TerritoryEnvironment:
         if a.alive and not self.terminated:
             for action in list(Action)[1:]:
                 if self._map.contains(action.target(a.position)) and (not action.is_attack or a.can_attack(self.tick + 1)):
-                    mask[action] = 1
+                    mask[action.index] = 1
         return mask
 
-    def observe(self, aid):
-        """aid에게 허용된 local/aware 관측 사전을 새로 만들어 반환한다.
-        전역 스냅샷은 관측 생성 내부에서만 사용하며 호출 자체는 틱이나 RNG를 바꾸지 않는다.
+    def observe(self, team_id, agent_number):
+        """팀·번호에 맞춘 전체 맵과 전략별 현재 행동을 독립적인 배열로 반환한다.
+        아군 영역은 1, 적군 영역은 -1이다. 조회는 물리 상태·회차·난수를 진행하지 않는다.
         """
         from .observation import build_observation
-        return build_observation(self.snapshot(), aid, self.config, self.experiment, self.action_mask(aid))
+        aid = self._agent_id(team_id, agent_number)
+        return build_observation(self.snapshot(), aid, self.config, self.decision_strategy,
+                                 self.action_mask(aid), self._collector.context(aid))
 
     def step(self, actions):
         """ID별 행동 사전을 받아 정확히 한 틱을 진행하고 StepResult를 반환한다.
@@ -145,6 +203,8 @@ class TerritoryEnvironment:
         self._require_reset()
         if self.terminated:
             raise RuntimeError("episode is over; call reset")
+        if self._collector.active:
+            raise RuntimeError("finish decision rounds before stepping")
         if set(actions) - set(AGENT_IDS):
             raise ValueError("unknown agent ID")
         # Parse ALL actions before mutating anything, including RNG.
@@ -153,9 +213,9 @@ class TerritoryEnvironment:
         events = []
         for aid in AGENT_IDS:
             action = requested[aid]
-            applied[aid] = action if self.action_mask(aid)[action] else Action.NOOP
+            applied[aid] = action if self.action_mask(aid)[action.index] else Action.NOOP
             if applied[aid] != action:
-                events.append(Event("rejected", aid, reason="action_mask", requested=int(action), applied=0))
+                events.append(Event("rejected", aid, reason="action_mask", requested=int(action), applied=int(Action.NOOP)))
         tick = self.tick + 1
         before = self._map.areas()
         attack_events = resolve_attacks(self._map.owner, self._agents, applied)
@@ -192,12 +252,19 @@ class TerritoryEnvironment:
             self._agents[aid].position = position
         kill_exposed("movement")
         after = self._map.areas()
-        terminated = tick == self.config.max_ticks
+        eliminated = tuple(("red", "blue")[team] for team, area in enumerate(after)
+                           if area == 0 and not any(a.alive and a.team == team for a in self._agents.values()))
+        reasons = tuple(reason for reason, condition in (("time_limit", tick >= self.config.max_ticks),
+                                                        ("team_eliminated", bool(eliminated))) if condition)
+        terminated = bool(reasons)
         if not terminated:
             events.extend(respawn_due_agents(self._agents, self._map.owner, tick, self._rng))
-        rewards, credits = calculate_rewards(self.experiment, before, after, events, terminated)
+        rewards, credits, components = calculate_rewards(self.experiment, before, after, events, terminated)
         self.tick, self.terminated = tick, terminated
+        self._collector.clear()
+        self.last_decision = []
         self._validate_state(self._map, self._agents, tick)
         return StepResult(tick, tuple(events), before, after, MappingProxyType(rewards),
-                          MappingProxyType(credits), terminated)
+                          MappingProxyType(credits), MappingProxyType({a: MappingProxyType(v) for a, v in components.items()}),
+                          terminated, termination_reasons=reasons, eliminated_teams=eliminated)
 

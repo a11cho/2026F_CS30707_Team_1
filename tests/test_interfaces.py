@@ -9,36 +9,48 @@ from territory_rl.keyboard import KeyboardController
 from territory_rl.manager import EpisodeManager
 from territory_rl.models import AGENT_IDS
 from territory_rl.parallel_env import TerritoryParallelEnv
-from territory_rl.session import ActionCollector
 from territory_rl.visualization import render_rgb
 from test_rules import scenario
 
 
-@pytest.mark.parametrize("obs_mode", ["local", "aware"])
+@pytest.mark.parametrize("strategy", ["independent", "sequential", "feedback"])
 @pytest.mark.parametrize("reward_mode", ["individual", "team"])
-def test_spaces_lifecycle_and_invariants(obs_mode, reward_mode):
+def test_spaces_lifecycle_and_invariants(strategy, reward_mode):
     """관측/보상 네 조합에서 공간 형식·전체 면적·좌표 유일성·종료 시점 등 환경 계약을 검증한다.
     임의 행동으로 환경만 진행하며 정책 학습은 수행하지 않는다.
     """
-    env = TerritoryParallelEnv(GameConfig(height=6, width=8, max_ticks=64), ExperimentConfig(obs_mode, reward_mode))
+    env = TerritoryParallelEnv(GameConfig(height=6, width=8, max_ticks=64), ExperimentConfig(strategy, reward_mode))
     obs, _ = env.reset(13)
     rng = np.random.default_rng(8)
     for tick in range(1, 65):
         for aid, o in obs.items():
             assert env.observation_space(aid).contains(o)
-            if obs_mode == "local":
-                assert not o["teammate_features"].any() and not o["teammate_feature_mask"].any()
+            assert not o["team_actions_known"].any()
         actions = {a: int(rng.integers(9)) for a in env.agents}
-        obs, rewards, terms, truncs, _ = env.step(actions)
+        if strategy == "independent":
+            obs, rewards, terms, truncs, _ = env.step(actions)
+        else:
+            env.begin_decision()
+            result = None
+            while result is None:
+                for aid in AGENT_IDS:
+                    team, number = aid.rsplit("_", 1)
+                    session = env.agent_session(team, int(number))
+                    assert env.observation_space(aid).contains(session.observe())
+                    session.submit_action(Action.from_index(actions[aid]))
+                result = env.finish_decision_round()
+            obs, rewards, terms, truncs, _ = result
         assert set(obs) == set(rewards) == set(AGENT_IDS)
         assert not any(truncs.values())
-        assert all(terms.values()) == (tick == 64)
+        assert all(terms.values()) == env.core.terminated
         assert env.state_space.contains(env.state())
         s = env.core.snapshot()
         alive = [a for a in s.agents if a.alive]
         assert len({a.position for a in alive}) == len(alive)
         assert all(s.owner[a.position] == a.team for a in alive)
         assert sum(s.areas) == 48
+        if all(terms.values()):
+            break
     assert not env.agents
 
 
@@ -53,17 +65,19 @@ def test_official_parallel_contract_and_seed_reproducibility():
 def test_same_trace_ignores_reward_observation_mode_and_submission_order():
     """동일 시드·행동열에서 관측/보상 모드와 사전 삽입 순서가 상태·이벤트를 바꾸지 않는지 검증한다."""
     game = GameConfig(height=6, width=8, max_ticks=80)
-    envs = [TerritoryEnvironment(game, ExperimentConfig(o, r)) for o in ("local", "aware") for r in ("individual", "team")]
+    envs = [TerritoryEnvironment(game, ExperimentConfig(o, r)) for o in ("independent", "sequential", "feedback") for r in ("individual", "team")]
     for e in envs:
         e.reset(77)
     rng = np.random.default_rng(9)
     for _ in range(80):
-        actions = {a: int(rng.integers(9)) for a in AGENT_IDS}
+        actions = {a: int(rng.integers(1, 10)) for a in AGENT_IDS}
         results = [e.step(dict(reversed(list(actions.items()))) if i % 2 else actions) for i, e in enumerate(envs)]
         for e, result in zip(envs[1:], results[1:]):
             np.testing.assert_array_equal(e.snapshot().owner, envs[0].snapshot().owner)
             assert e.snapshot().agents == envs[0].snapshot().agents
             assert result.events == results[0].events
+        if results[0].terminated:
+            break
 
 
 def test_snapshot_and_observation_do_not_alias_internal_state():
@@ -74,51 +88,53 @@ def test_snapshot_and_observation_do_not_alias_internal_state():
         s.owner[0, 0] = 1
     s.owner.flags.writeable = True
     s.owner[:] = 1
-    obs = env.observe("red_0")
-    obs["local_grid"][:] = 9
+    obs = env.observe("red", 0)
+    obs["owner"][:] = 9
     obs["action_mask"][:] = 0
     assert env.snapshot().owner[0, 0] == 0
-    assert env.observe("red_0")["local_grid"].max() <= 1
+    assert env.observe("red", 0)["owner"].max() <= 1
     assert env.action_mask("red_0")[0] == 1
 
 
-def test_hidden_changes_do_not_leak_to_local_observation_or_mask():
-    """시야 밖 팀원 위치 변화는 local 관측에 숨겨지고 aware의 팀원 정보에는 나타나는지 검증한다."""
-    first = scenario({"red_0": (0, 0), "red_1": (5, 0)})
-    second = scenario({"red_0": (0, 0), "red_1": (5, 1)})
-    for key, value in first.observe("red_0").items():
-        np.testing.assert_array_equal(value, second.observe("red_0")[key])
-    first.experiment = second.experiment = ExperimentConfig(observation_mode="aware")
-    assert not np.array_equal(first.observe("red_0")["teammate_features"], second.observe("red_0")["teammate_features"])
+def test_full_map_relative_team_and_positions():
+    """양 팀이 동일 물리 맵을 반대 부호로 보고 모든 위치를 아군 우선 순서로 받는다."""
+    env = scenario()
+    red, blue = env.observe("red", 0), env.observe("blue", 2)
+    np.testing.assert_array_equal(red["owner"], -blue["owner"])
+    assert set(np.unique(red["owner"])) == {-1, 1}
+    np.testing.assert_array_equal(red["agent_positions"][:3], blue["agent_positions"][3:])
+    np.testing.assert_array_equal(red["areas"], blue["areas"][::-1])
+    assert blue["self_index"] == 2 and blue["self_team"] == 1
 
 
-def test_aware_previous_actions_and_dead_observation():
-    """사망자의 지역 관측/행동 mask와 aware의 직전 팀원 행동 표현이 올바른지 검증한다."""
-    env = scenario({"red_0": (2, 2)}, experiment=ExperimentConfig(observation_mode="aware"))
+def test_dead_observation_keeps_full_map_and_unknown_current_actions():
+    """사망자도 전체 맵을 받고 과거 실행 행동은 현재 행동 관측에 누출되지 않는다."""
+    env = scenario({"red_0": (2, 2)})
     env.step({"red_0": Action.RIGHT, "red_1": Action.ATTACK_RIGHT})
-    dead = env.observe("red_0")
-    assert not dead["local_grid"].any()
+    dead = env.observe("red", 0)
+    assert not dead["agent_alive"][0]
+    assert dead["owner"].shape == (6, 6)
+    assert tuple(dead["agent_positions"][0]) == (-1, -1)
+    assert not dead["team_action_codes"].any()
     np.testing.assert_array_equal(dead["action_mask"], [1, 0, 0, 0, 0, 0, 0, 0, 0])
-    assert dead["teammate_features"][0, 5+Action.ATTACK_RIGHT] == 1
 
 
-def test_sessions_no_submission_leak_duplicate_and_stale_tokens():
-    """미완료 제출 행동의 관측 누출, 중복 제출, 전이/reset 뒤 오래된 세션 사용을 방지하는지 검증한다."""
-    env = scenario(experiment=ExperimentConfig(observation_mode="aware"))
-    collector = ActionCollector(env)
-    collector.begin()
-    red, teammate = collector.session("red_0"), collector.session("red_1")
+def test_sessions_independent_duplicate_and_stale_tokens():
+    """개별 전략의 제출 비공개와 동일 회차 중복·이전 세션 사용 거부를 검증한다."""
+    env = scenario()
+    env.begin_decision()
+    red, teammate = env.agent_session("red", 0), env.agent_session("red", 1)
     before = teammate.observe()
     red.submit_action(Action.ATTACK_RIGHT)
     for key, value in before.items():
         np.testing.assert_array_equal(value, teammate.observe()[key])
     with pytest.raises(ValueError):
         red.submit_action(Action.NOOP)
-    env.step(collector.actions())
+    env.finish_decision_round()
     with pytest.raises(RuntimeError):
         red.observe()
-    collector.begin()
-    stale = collector.session("red_0")
+    env.begin_decision()
+    stale = env.agent_session("red", 0)
     env.reset(2)
     with pytest.raises(RuntimeError):
         stale.submit_action(Action.NOOP)
@@ -172,10 +188,11 @@ def test_scripted_controllers_only_use_observations_and_valid_actions(style):
     env.reset(9)
     bots = {a: FrontierController(i, style) for i, a in enumerate(AGENT_IDS)}
     for _ in range(40):
-        obs = {a: env.observe(a) for a in AGENT_IDS}
+        obs = {a: env.observe(a.rsplit("_", 1)[0], int(a[-1])) for a in AGENT_IDS}
         actions = {a: bots[a].act(obs[a]) for a in AGENT_IDS}
-        assert all(obs[a]["action_mask"][v] for a, v in actions.items())
-        env.step(actions)
+        assert all(obs[a]["action_mask"][v.index] for a, v in actions.items())
+        if env.step(actions).terminated:
+            break
 
 
 def test_tk_controls_step_reset_selection_and_cleanup():

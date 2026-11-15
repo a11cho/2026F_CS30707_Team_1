@@ -4,48 +4,53 @@ import math
 
 @dataclass(frozen=True)
 class GameConfig:
-    height: int = 12
-    width: int = 16
-    max_ticks: int = 256
-    respawn_delay: int = 2
-    observation_radius: int = 3
+    height: int = 8
+    width: int = 8
+    max_ticks: int = 128
+    respawn_delay: int = 0
     initial_placement: str = "frontier"
-    rules_version: str = "territory_v0"
+    rules_version: str = "territory_v1"
 
     def __post_init__(self):
-        """생성 직후 맵 크기·시간·시야·초기 배치·규칙 버전을 검증한다.
-        잘못된 설정은 게임 시작 전에 ValueError로 알리며 기본값으로 임의 보정하지 않는다.
-        """
-        for name in ("height", "width", "max_ticks", "respawn_delay", "observation_radius"):
+        """맵·시간·부활 설정을 검증한다. 딜레이 0은 사망 틱 후반 부활이다."""
+        for name in ("height", "width", "max_ticks", "respawn_delay"):
             if type(getattr(self, name)) is not int:
                 raise ValueError(f"{name} must be an integer")
         if self.height < 3 or self.width < 2 or self.width % 2:
             raise ValueError("height >= 3 and even width >= 2 are required")
-        if self.max_ticks < 1 or self.respawn_delay < 0 or self.observation_radius < 1:
-            raise ValueError("max_ticks/radius must be positive; respawn_delay >= 0")
+        if self.max_ticks < 1 or self.respawn_delay < 0:
+            raise ValueError("max_ticks must be positive; respawn_delay >= 0")
         if self.initial_placement not in ("frontier", "random"):
             raise ValueError("initial_placement must be frontier or random")
-        if self.rules_version != "territory_v0":
-            raise ValueError("unsupported rules_version")
+        if self.rules_version != "territory_v1":
+            raise ValueError("unsupported rules_version; v0 action logs require migration")
 
 
 @dataclass(frozen=True)
 class ExperimentConfig:
-    observation_mode: str = "local"
+    decision_strategy: str = "independent"
     reward_mode: str = "team"
-    team_signal: str = "net"
-    terminal_bonus: float = 1.0
+    team_signal: str = "area"
+    capture_weight: float = 1.0
+    area_weight: float = 1.0
+    win_reward: float = 1.0
+    loss_reward: float = 0.0
+    draw_reward: float = 0.0
+    include_terminal_reward: bool = False
 
     def __post_init__(self):
-        """관측/보상 모드와 종료 보상 계수의 유효성을 검증한다.
-        지원하지 않는 모드 또는 음수·무한대·NaN 계수이면 ValueError를 발생시킨다.
-        """
-        if self.observation_mode not in ("local", "aware"):
-            raise ValueError("observation_mode must be local or aware")
+        """전략과 보상을 독립적으로 검증한다. 실행 기본값은 실험 결과나 확정 계수를 뜻하지 않는다."""
+        if self.decision_strategy not in ("independent", "sequential", "feedback"):
+            raise ValueError("unknown decision_strategy")
         if self.reward_mode not in ("individual", "team"):
             raise ValueError("reward_mode must be individual or team")
         if self.team_signal not in ("net", "gross", "area", "terminal"):
             raise ValueError("unknown team_signal")
-        if not math.isfinite(self.terminal_bonus) or self.terminal_bonus < 0:
-            raise ValueError("terminal_bonus must be finite and nonnegative")
-
+        for name in ("capture_weight", "area_weight", "win_reward", "loss_reward", "draw_reward"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError(f"{name} must be finite")
+        if self.capture_weight <= 0 or self.area_weight < 0 or self.win_reward < 0 or self.loss_reward > 0:
+            raise ValueError("capture_weight > 0; area_weight/win_reward >= 0; loss_reward <= 0")
+        if type(self.include_terminal_reward) is not bool:
+            raise ValueError("include_terminal_reward must be a bool")
