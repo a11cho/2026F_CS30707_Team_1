@@ -185,7 +185,7 @@ def test_team_signals_do_not_mix_implicitly(signal):
     first = env.step({"red_0": Action.ATTACK_RIGHT})
     final = env.step({})
     if signal == "area":
-        assert first.rewards["red_0"] == final.rewards["red_0"] == pytest.approx(2*19/3)
+        assert first.rewards["red_0"] == final.rewards["red_0"] == 2 * 19
         assert final.reward_components["red_0"]["terminal"] == 0
     else:
         assert not any(first.rewards.values())
@@ -199,16 +199,16 @@ def test_team_signals_do_not_mix_implicitly(signal):
 
 
 def test_personal_capture_weight_shared_capture_and_explicit_terminal_mix():
-    """공동 기여 가중치·무기여자 0과 명시적인 종료 보상 혼합을 검증한다."""
+    """공동 점령자마다 가중치 전액을 지급하며 명시적인 종료 보상을 합산한다."""
     positions = {"red_0": (2, 2), "red_1": (3, 3)}
     config = ExperimentConfig(reward_mode="individual", capture_weight=4, win_reward=10)
     env = scenario(positions, ticks=1, experiment=config)
     r = env.step({"red_0": Action.ATTACK_RIGHT, "red_1": Action.ATTACK_UP})
-    assert [r.rewards[a] for a in AGENT_IDS[:3]] == [2, 2, 0]
+    assert [r.rewards[a] for a in AGENT_IDS[:3]] == [4, 4, 0]
     mixed = scenario(positions, ticks=1, experiment=ExperimentConfig(
         reward_mode="individual", capture_weight=4, win_reward=10, include_terminal_reward=True))
     r = mixed.step({"red_0": Action.ATTACK_RIGHT, "red_1": Action.ATTACK_UP})
-    assert [r.rewards[a] for a in AGENT_IDS[:3]] == [12, 12, 10]
+    assert [r.rewards[a] for a in AGENT_IDS[:3]] == [14, 14, 10]
 
 
 def test_elimination_and_time_limit_both_reported_by_adapter():

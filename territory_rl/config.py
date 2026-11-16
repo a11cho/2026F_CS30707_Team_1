@@ -46,7 +46,7 @@ class ExperimentConfig:
             raise ValueError("unknown decision_strategy")
         if self.reward_mode not in ("individual", "team"):
             raise ValueError("reward_mode must be individual or team")
-        if self.team_signal not in ("net", "gross", "area", "gap", "terminal"):
+        if self.team_signal not in ("area", "gap", "terminal"):
             raise ValueError("unknown team_signal")
         for name in ("capture_weight", "area_weight", "gap_weight", "win_reward", "loss_reward", "draw_reward"):
             value = getattr(self, name)
@@ -68,7 +68,7 @@ class ExperimentConfig:
     def resolved_reward_mask(self):
         """(면적, 상대 팀과의 격차, 종료) 활성 마스크를 반환한다.
 
-        명시 마스크가 모든 이전 선택 옵션보다 우선한다. 생략 시 기존 설정을 변환하여
+        명시 마스크는 team_signal/include_terminal_reward보다 우선한다. 생략 시 두 설정을 변환하여
         개인 점령 보상에 팀 면적 보상이 자동으로 섞이지 않게 한다.
         """
         if self.reward_signal_mask is not None:

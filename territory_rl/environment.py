@@ -260,7 +260,7 @@ class TerritoryEnvironment:
         terminated = bool(reasons)
         if not terminated:
             events.extend(respawn_due_agents(self._agents, self._map.owner, tick, self._rng))
-        rewards, credits, components = calculate_rewards(self.experiment, before, after, events, terminated)
+        rewards, credits, components = calculate_rewards(self.experiment, after, events, terminated)
         self.tick, self.terminated = tick, terminated
         self._collector.clear()
         self.last_decision = []

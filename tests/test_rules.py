@@ -37,7 +37,7 @@ def agent(env, aid):
 
 
 def test_attack_majority_tie_credit_and_cooldown():
-    """공격 동률 유지, 다음 틱 공격 제한, 다수 공격 성공과 공동 기여도 분배를 검증한다."""
+    """공격 동률 유지, 다음 틱 공격 제한, 다수 공격 성공과 공동 점령 참여를 검증한다."""
     env = scenario({"red_0": (2, 2), "red_1": (3, 3), "blue_0": (2, 4)})
     original = env.snapshot().owner[2, 3]
     r = env.step({"red_0": A.ATTACK_RIGHT, "blue_0": A.ATTACK_LEFT})
@@ -49,8 +49,8 @@ def test_attack_majority_tie_credit_and_cooldown():
     assert env.action_mask("red_0")[5:].all()
     r = env.step({"red_0": A.ATTACK_RIGHT, "red_1": A.ATTACK_UP, "blue_0": A.ATTACK_LEFT})
     assert env.snapshot().owner[2, 3] == 0
-    assert r.credits["red_0"] == r.credits["red_1"] == .5
-    assert sum(r.credits.values()) == 1
+    assert r.credits["red_0"] == r.credits["red_1"] == 1
+    assert sum(r.credits.values()) == 2
 
 
 def test_friendly_attack_consumes_cooldown_without_credit():
@@ -220,13 +220,13 @@ def test_reset_scenario_validation():
 
 
 @pytest.mark.parametrize("mode,signal,bonus,expected", [
-    ("individual", "net", 0, (1., 0., 0.)),
-    ("team", "net", 0, (1/3, 1/3, 1/3)),
-    ("team", "gross", 0, (1/3, 1/3, 1/3)),
+    ("individual", "area", 0, (1., 0., 0.)),
+    ("team", "area", 0, (19., 19., 19.)),
+    ("team", "gap", 0, (2., 2., 2.)),
     ("team", "terminal", 1, (1., 1., 1.)),
 ])
 def test_reward_modes(mode, signal, bonus, expected):
-    """개인 기여·팀 순증가·팀 총획득·종료 승패 모드의 보상 수치가 예상과 일치하는지 검증한다."""
+    """개인 점령과 팀 면적·격차·종료 보상 값을 검증한다."""
     env = scenario({"red_0": (2, 2)}, ticks=1, experiment=ExperimentConfig(reward_mode=mode, team_signal=signal, include_terminal_reward=bool(bonus)))
     r = env.step({"red_0": A.ATTACK_RIGHT})
     assert tuple(r.rewards[a] for a in AGENT_IDS[:3]) == pytest.approx(expected)
@@ -234,6 +234,6 @@ def test_reward_modes(mode, signal, bonus, expected):
 
 def test_dead_team_member_receives_shared_reward():
     """틱 시작에 부활 대기 중인 팀원도 같은 틱의 팀 공유 보상을 받는지 검증한다."""
-    env = scenario({"red_0": (2, 2), "red_2": None}, experiment=ExperimentConfig(team_signal="net"))
+    env = scenario({"red_0": (2, 2), "red_2": None}, experiment=ExperimentConfig(team_signal="area"))
     r = env.step({"red_0": A.ATTACK_RIGHT})
-    assert r.rewards["red_2"] == r.rewards["red_0"] == pytest.approx(1/3)
+    assert r.rewards["red_2"] == r.rewards["red_0"] == 19

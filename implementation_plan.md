@@ -149,7 +149,7 @@ EpisodeManager → environment.begin_decision() → 내부 ActionCollector
 | 기본값 | 옵션 생략 시 8×8/T=128/respawn_delay=0; 다른 크기/T/딜레이 명시 시 반영; CLI와 직접 생성 일치 |
 | 부활 딜레이 | 기본 0에서 사망 틱 후반 부활, 다음 틱 행동, 같은 틱 재행동 없음; 명시적인 양수 설정도 기존대로 동작 |
 | 부활 예외 | 빈 아군 타일이 없으면 배치 대기, 종료 틱에는 부활 생략, 고정 대기 틱을 새로 추가하지 않음 |
-| 개인 보상 | 실제 소유권 변화만 보상, 공동 점령 1/q, 실패·아군 땅 공격은 0, 공격 후 사망해도 기여 인정 |
+| 개인 보상 | 실제 점령에 참여한 공격자마다 `capture_weight` 지급, 실패·아군 땅 공격은 0, 공격 후 사망해도 점령 보상 지급 |
 | 팀 보상 | area/gap/terminal 8개 마스크 조합의 중간·종료·조기 종료 수치, 비활성 항 0, 세 팀원 동일 신호 |
 | 시간 종료 | 정확히 설정된 T의 전이를 반영한 뒤 종료, 종료 틱 부활 없음 |
 | 조기 종료 | T 이전 팀 전원 사망+영역 0이면 종료; 마지막 공격·영역·보상·종료 이유 일치 |
@@ -172,11 +172,11 @@ EpisodeManager → environment.begin_decision() → 내부 ActionCollector
 
 ## 8. 보상 시그널 구현 계획
 
-`reward_mode=individual/team`으로 귀속 목적을 구분하고, 팀 시그널은 `reward_signal_mask=(area, gap, terminal)`로 선택한다. 여러 항을 켜면 합산하며 구체적인 실험 계수는 설정으로 관리한다. 기존 net/gross 옵션을 삭제할 필요는 없지만 현재 면적 기반 보상과 다른 신호임을 표시한다.
+`reward_mode=individual/team`으로 귀속 목적을 구분하고, 팀 시그널은 `reward_signal_mask=(area, gap, terminal)`로 선택한다. 여러 항을 켜면 합산하며 구체적인 실험 계수는 설정으로 관리한다.
 
-- 개인 조건: 실제 `capture` 이벤트의 승리 팀 contributors로 개인 기여 `c_i`를 계산하고 `capture_weight × c_i`를 지급한다. 기존 1/q 공동 점령 분배를 유지한다. 생존 시간 보너스와 경계 이동 비용을 별도 보상으로 추가하지 않는다.
-- 팀 area 조건: `area_weight × 현재 팀 면적 / 3`을 각 팀원에게 주는 기존 분배 방식을 제안한다. 면적 증가량이 아니며 종료 보너스는 자동으로 더하지 않는다.
-- 팀 gap 조건: `gap_weight × (현재 아군 면적 − 현재 적군 면적) / 3`을 팀원마다 지급한다. 전후 틱 변화량이 아니며 열세면 음수, 동률이면 0이다.
+- 개인 조건은 실제 `capture` 이벤트에 포함된 공격자에게 각각 `capture_weight`를 지급한다. 점령 참여는 API와 로그에 에이전트별로 집계한다.
+- 팀 area 조건은 `area_weight × 현재 팀 면적`을 각 팀원에게 지급한다.
+- 팀 gap 조건: `gap_weight × (현재 아군 면적 − 현재 적군 면적)`을 팀원마다 지급한다. 팀원 수로 나누지 않고 가중치로 크기를 조절한다. 전후 틱 변화량이 아니며 열세면 음수, 동률이면 0이다.
 - 팀 terminal 조건: 실제 종료 틱에만 최종 영역으로 결과를 판정한다. 승/패/무승부 보상값은 각각 설정한다. 기존 terminal_bonus의 +1/−1/0 대칭값을 확정된 새 요구사항으로 간주하지 않는다.
 - 사망 처리: 별도의 사망 보상 계수나 차감 항을 추가하지 않는다. 기존 설정의 부활 딜레이 기본값을 0으로 바꾸고 무작위 부활 위치 선정은 유지한다. 공격 후 사망한 에이전트의 이미 발생한 점령 기여를 취소하지 않는다.
 
@@ -192,8 +192,8 @@ EpisodeManager → environment.begin_decision() → 내부 ActionCollector
 
 ## 10. 2026-11-16 보상 마스크 추가
 
-`ExperimentConfig`에 `gap_weight=1`, `reward_signal_mask=None`을 추가했다. 명시 마스크를 3개 이진값의 불변 튜플로 검증하고 저장한다. 미지정이면 기존 선택을 `resolved_reward_mask`로 해석한다. 명시 마스크가 이전 선택 옵션보다 우선하며 net/gross도 끈다. 개인 점령 항은 독립적이고 명시 마스크로 팀 시그널을 추가할 수 있다.
+`ExperimentConfig`에 `gap_weight=1`, `reward_signal_mask=None`을 추가했다. 명시 마스크를 3개 이진값의 불변 튜플로 검증하고 저장한다. 미지정이면 `team_signal`과 `include_terminal_reward`를 `resolved_reward_mask`로 해석한다. 개인 점령 항은 독립적이고 명시 마스크로 팀 시그널을 추가할 수 있다.
 
-환경 및 Parallel adapter의 reset에서 새 마스크를 적용할 수 있다. CLI는 `--reward-mask 0 1 0`, 실행 스크립트는 `-RewardMask 0,1,0`을 받으며 키보드 화면과 로그에서도 확인한다. reward_components는 활성화된 capture/area/gap/terminal 및 호환용 team 항을 기록한다. 초기 v1의 면적 로그는 재생 시 새 항 구분으로 이전한다.
+환경 및 Parallel adapter의 reset에서 새 마스크를 적용할 수 있다. CLI는 `--reward-mask 0 1 0`, 실행 스크립트는 `-RewardMask 0,1,0`을 받으며 키보드 화면과 로그에서도 확인한다. `reward_components`는 `capture`, `area`, `gap`, `terminal`을 기록한다. replay는 현재 공식으로 보상을 다시 계산해 로그와 비교한다.
 
 검증은 8개 마스크, 양/음/동률 격차, 유지된 격차, 조기 종료, 개인 항 독립성, 불변 설정과 reset, 잘못된 입력, CLI/로그 재생 및 마스크에 따른 물리 전이 불변성에 한정한다. 학습은 실행하지 않는다. 고정 전체 면적에서 격차와 면적의 수학적 관계 및 가변 에피소드 길이의 차이는 env.md 8.3절에 명시한다.
