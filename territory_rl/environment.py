@@ -76,13 +76,14 @@ class TerritoryEnvironment:
         """새 에피소드 상태와 환경 전용 RNG를 만들고 초기 StateSnapshot을 반환한다.
 
         seed가 같으면 초기 배치와 이후 동일 행동열에 따른 무작위 부활을 재현할 수 있다.
-        options에는 owner, agents, tick 및 새 에피소드의 decision_strategy를 지정할 수 있다.
+        options에는 owner, agents, tick 및 새 에피소드의 decision_strategy/reward_signal_mask를 지정할 수 있다.
         사용자 상태는 검증·복사한 뒤 반영하고 episode_id를 늘려 기존 세션을 무효화한다.
         """
         options = dict(options or {})
-        if set(options) - {"owner", "agents", "tick", "decision_strategy"}:
+        if set(options) - {"owner", "agents", "tick", "decision_strategy", "reward_signal_mask"}:
             raise ValueError("unsupported scenario option")
-        experiment = replace(self.experiment, decision_strategy=options.get("decision_strategy", self.decision_strategy))
+        experiment = replace(self.experiment, decision_strategy=options.get("decision_strategy", self.decision_strategy),
+                             reward_signal_mask=options.get("reward_signal_mask", self.experiment.reward_signal_mask))
         cfg = self.config
         rng = np.random.default_rng(seed)
         tile_map = TileMap(cfg.height, cfg.width, options.get("owner"))

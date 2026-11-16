@@ -59,7 +59,7 @@ class TerritoryParallelEnv(ParallelEnv):
         여섯 ID를 활성 목록에 복구하고 마지막 결과를 비운다. options의 시나리오 키만
         코어에 전달하며 외부 wrapper가 넘긴 그 밖의 옵션은 무시한다.
         """
-        scenario = {k: v for k, v in (options or {}).items() if k in ("owner", "agents", "tick", "decision_strategy")}
+        scenario = {k: v for k, v in (options or {}).items() if k in ("owner", "agents", "tick", "decision_strategy", "reward_signal_mask")}
         self.core.reset(seed, scenario)
         self.agents = self.possible_agents.copy()
         self.last_result = None

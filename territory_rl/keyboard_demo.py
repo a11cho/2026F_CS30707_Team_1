@@ -178,7 +178,8 @@ class KeyboardDemo:
         visible = [Action(int(c)).name if c else "?" for c in observation["team_action_codes"]]
         stage = f"Strategy: {self.env.decision_strategy} / round {self.env.decision_round or 1}"
         next_aid = self.env.next_decision_agent or (AGENT_IDS[0] if not self.env.terminated else "finished")
-        decision_info = f"\n{stage}\nNext: {next_aid}\n{observation['action_source']}:\n{' / '.join(visible)}"
+        mask = self.env.experiment.resolved_reward_mask
+        decision_info = f"\n{stage}\nReward mask (area/gap/end): {''.join(map(str, mask))}\nNext: {next_aid}\n{observation['action_source']}:\n{' / '.join(visible)}"
         self.status.config(text=f"{mode}   Tick {snapshot.tick}/{snapshot.max_ticks}\nRED {snapshot.areas[0]}   BLUE {snapshot.areas[1]}\nSelected: {self.selected}\nQueued: {pending.name if pending is not None else 'NOOP (default)'}\nMode: {'all manual' if self.manual_all else 'selected human + 5 bots'}" + decision_info)
         lines = []
         for index, a in enumerate(snapshot.agents):

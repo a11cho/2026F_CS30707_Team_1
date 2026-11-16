@@ -49,6 +49,12 @@ def replay(path):
                 result = env.step(item["actions"])
             actual = json.loads(json.dumps(result.to_dict()))
             expected = {k: item[k] for k in actual}
+            # 초기 v1 로그는 면적 항을 team에 기록했다. 수치 검증을 유지하며 명시적으로 이전한다.
+            for parts in expected["reward_components"].values():
+                if "area" not in parts and "gap" not in parts:
+                    area = parts["team"] if env.experiment.reward_mode == "team" and env.experiment.team_signal == "area" else 0.0
+                    parts["area"], parts["gap"] = area, 0.0
+                    parts["team"] -= area
             if actual != expected:
                 raise ValueError(f"replay mismatch at tick {actual['tick']}")
             count += 1
@@ -72,9 +78,12 @@ def main(argv=None):
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--strategy", choices=["independent", "sequential", "feedback"], default=exp_defaults.decision_strategy)
     parser.add_argument("--reward", choices=["individual", "team"], default="team")
-    parser.add_argument("--team-signal", choices=["net", "gross", "area", "terminal"], default=exp_defaults.team_signal)
+    parser.add_argument("--team-signal", choices=["net", "gross", "area", "gap", "terminal"], default=exp_defaults.team_signal)
+    parser.add_argument("--reward-mask", nargs=3, type=int, choices=(0, 1), metavar=("AREA", "GAP", "TERMINAL"),
+                        help="0/1 mask; overrides team-signal/include-terminal-reward; enabled terms are summed")
     parser.add_argument("--capture-weight", type=float, default=exp_defaults.capture_weight)
     parser.add_argument("--area-weight", type=float, default=exp_defaults.area_weight)
+    parser.add_argument("--gap-weight", type=float, default=exp_defaults.gap_weight)
     parser.add_argument("--win-reward", type=float, default=exp_defaults.win_reward)
     parser.add_argument("--loss-reward", type=float, default=exp_defaults.loss_reward)
     parser.add_argument("--draw-reward", type=float, default=exp_defaults.draw_reward)
@@ -95,7 +104,8 @@ def main(argv=None):
     config = GameConfig(height=args.height, width=args.width, max_ticks=args.ticks, respawn_delay=args.respawn_delay)
     experiment = ExperimentConfig(decision_strategy=args.strategy, reward_mode=args.reward,
                                   team_signal=args.team_signal, capture_weight=args.capture_weight,
-                                  area_weight=args.area_weight, win_reward=args.win_reward,
+                                  area_weight=args.area_weight, gap_weight=args.gap_weight,
+                                  reward_signal_mask=args.reward_mask, win_reward=args.win_reward,
                                   loss_reward=args.loss_reward, draw_reward=args.draw_reward,
                                   include_terminal_reward=args.include_terminal_reward)
     if args.mode == "keyboard":

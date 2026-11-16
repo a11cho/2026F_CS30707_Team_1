@@ -9,7 +9,7 @@ PowerShell에서 `project` 디렉터리를 기준으로 실행한다. 기존 `.v
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[test]"
-.\play.ps1 -ManualAll -Strategy feedback
+.\play.ps1 -ManualAll -Strategy feedback -RewardMask 0,1,0
 ```
 
 전략은 `independent`(개별), `sequential`(순차), `feedback`(되먹임) 중 선택한다. `-ManualAll`을 생략하면 선택한 한 명만 키보드, 나머지는 scripted 컨트롤러다.
@@ -30,10 +30,41 @@ python -m venv .venv
 - 부활 딜레이 기능은 설정으로 남아 있다. `--height`, `--width`, `--ticks`, `--respawn-delay`로 기본값을 바꾼다.
 - 종료는 최대 틱 도달 또는 한 팀의 생존자 0명·영역 0칸이다. 종료 틱에는 부활하지 않는다.
 - 개인 보상은 실제 점령 기여 × `capture_weight`. 공동 점령은 1/q로 분배한다. 사망 보상 차감·생존 보너스·이동 페널티는 추가하지 않는다.
-- 팀 `area`는 매 틱 현재 팀 면적 × `area_weight` / 3을 각 팀원에게 지급한다. 팀 `terminal`은 실제 종료 때만 승/패/무승부 보상을 지급한다.
-- 개인 또는 팀 area에 종료 보상을 섞으려면 `--include-terminal-reward`를 명시한다. 자동 혼합하지 않는다.
+- 팀 `area`는 매 틱 현재 팀 면적 × `area_weight` / 3, `gap`은 매 틱 (아군 면적 − 상대 팀 면적) × `gap_weight` / 3을 각 팀원에게 지급한다. `terminal`은 실제 종료 때만 승/패/무승부 보상을 지급한다.
+- `--reward-mask AREA GAP TERMINAL`로 세 시그널을 선택한다. 여러 값을 1로 켜면 합산하고, 0인 항은 제외한다. 개인 점령 항은 이 마스크와 독립적이다.
 
-미정 계수의 **실행용 초기값**은 개별 결정, 팀 area, 점령/면적 가중치 1, 승/패/무승부 1/0/0이다. 연구적으로 확정된 계수나 성능이 검증된 설정을 의미하지 않는다. CLI의 `--help`와 `ExperimentConfig`에서 값을 변경할 수 있다. `net/gross`는 기존 호환용 팀 시그널이며 현재 면적 보상과 다르다.
+미정 계수의 **실행용 초기값**은 개별 결정, 팀 area, 점령/면적/격차 가중치 1, 승/패/무승부 1/0/0이다. 연구적으로 확정된 계수나 성능이 검증된 설정을 의미하지 않는다. CLI의 `--help`와 `ExperimentConfig`에서 값을 변경할 수 있다. `net/gross`는 기존 호환용 팀 시그널이며 현재 면적 보상과 다르다.
+
+## 보상 마스크 선택
+
+마스크 순서는 **면적, 상대 격차, 종료**다. 격차는 이전 틱과의 차이가 아닌 현재 상대 팀과의 면적 차이다. 기본은 면적만 활성화한다.
+
+| 선택 | 마스크 |
+| --- | --- |
+| 면적만 | `1 0 0` |
+| 격차만 | `0 1 0` |
+| 종료만 | `0 0 1` |
+| 격차 + 종료 | `0 1 1` |
+| 팀 시그널 전부 끄기 | `0 0 0` |
+
+```powershell
+.\.venv\Scripts\python.exe -m territory_rl --reward team --reward-mask 0 1 0 --gap-weight 1
+.\play.ps1 -ManualAll -RewardMask 0,1,1
+```
+
+```python
+experiment = ExperimentConfig(reward_signal_mask=(0, 1, 0), gap_weight=1.0)
+env = TerritoryEnvironment(experiment=experiment)
+env.reset(seed=7)
+# 다음 에피소드에서 다른 마스크를 선택할 수도 있다.
+env.reset(seed=8, options={"reward_signal_mask": [0, 0, 1]})
+```
+
+명시 마스크가 `--team-signal`과 `--include-terminal-reward`를 덮어쓴다. 마스크를 생략하면 두 기존 옵션의 동작을 유지하며 `--team-signal gap`도 지원한다. 개인 모드의 기본은 점령 항만 지급하지만 명시 마스크를 켜면 해당 팀 시그널을 추가한다. `(0,0,0)`으로 개인 점령 항까지 꺼지지는 않는다.
+
+설정과 마스크는 reset 로그에 보존한다. `reward_components`에는 `capture`, `area`, `gap`, `terminal`, 호환용 `team`(net/gross)을 분리하며 합계가 실제 보상이다. 초기 v1 로그의 team에 들어 있던 면적 항도 재생 시 명시적으로 이전한다. 키보드 화면에는 현재 마스크를 표시한다.
+
+격차는 고정 맵에서 `2 × 아군 면적 − 전체 면적`이므로 면적 보상과 밀접하다. 상대 우세를 부호로 표시하고 매 틱 피드백을 제공하려는 선택이며, 학습 개선 여부는 별도로 검증할 가설이다.
 
 ## 키보드 조작
 
