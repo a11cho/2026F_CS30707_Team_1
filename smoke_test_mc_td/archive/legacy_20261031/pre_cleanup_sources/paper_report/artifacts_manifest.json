@@ -1,0 +1,145 @@
+{
+  "run_id": "20261031T112320430780Z",
+  "training_performed": false,
+  "report_language": "ko",
+  "python": "3.13.9 | packaged by Anaconda, Inc. | (main, Oct 21 2025, 19:09:58) [MSC v.1929 64 bit (AMD64)]",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "numpy": "2.3.5",
+  "matplotlib": "3.10.6",
+  "pillow": "12.0.0",
+  "figures": 8,
+  "videos": 2,
+  "bootstrap_seed": 20261031,
+  "bootstrap_samples": 10000,
+  "validation": "글꼴·그래프 육안 검사, 표 열 수·수치·원본 해시·GIF 기간·AVI 프레임과 인덱스 검사 통과",
+  "files": {
+    "build_paper_report.py": {
+      "bytes": 42688,
+      "sha256": "313793a5e7065b60cc15dbafeba377f586501aac602d4f32ddb1ad5faf35ec2a"
+    },
+    "prepare_paper_data.py": {
+      "bytes": 6577,
+      "sha256": "bc3474fd64bede9ceedd05ea2bd87aed3657bbc3b213b96379398a0cd353b411"
+    },
+    "render_paper_videos.py": {
+      "bytes": 8535,
+      "sha256": "4075f9414ab31446eedeb69183fc610bb84a7c0509f0cab6709bf758cc8698bb"
+    },
+    "REPORT.md": {
+      "bytes": 29777,
+      "sha256": "0ac2774551594150d76ec2833a3b9743e080eb05c86159db477e786f3a4b18c6"
+    },
+    "data\\diagnostics_long.csv": {
+      "bytes": 84358,
+      "sha256": "4c387959f9d7ce4f61c376618f09239f7691aa2e955bab6426b6952f022d54b9"
+    },
+    "data\\paired_bootstrap.csv": {
+      "bytes": 707,
+      "sha256": "5b68e309779cf35ae063a0f5b420fd4bbf8c03b796a43ab60704bfb5734a0ec1"
+    },
+    "data\\paper_data.json": {
+      "bytes": 28035252,
+      "sha256": "daa7e3a2e7d10e7e671a10cc4e6ed1d3ec893d23b25b6ebeea9ba32bbb9c989e"
+    },
+    "data\\simulation_traces.json": {
+      "bytes": 345597,
+      "sha256": "5db2190a8dc0d16c6883c2c921702f9eee4472241259ff43fa48bd19bc9a4cca"
+    },
+    "data\\untrained_test.csv": {
+      "bytes": 59937,
+      "sha256": "3372e22fb4d122a36e692e85a11deadf7c36ec94a21cb7534932e735d7c9f765"
+    },
+    "figures\\fig01_learning_curves.png": {
+      "bytes": 719302,
+      "sha256": "7ff96da6aca3a374473b297269e8e2843a00206228f2b1bf76f4c318fd79dd9d"
+    },
+    "figures\\fig01_learning_curves.svg": {
+      "bytes": 69473,
+      "sha256": "75472a1b8bd6245dbcc848181e891c31372d0291dbe5af90246a42946b156ecc"
+    },
+    "figures\\fig02_final_performance.png": {
+      "bytes": 180580,
+      "sha256": "2753ee3df869d7f32183845854bd886589314fcb3790aab12a83f242ad0ff4c4"
+    },
+    "figures\\fig02_final_performance.svg": {
+      "bytes": 25817,
+      "sha256": "ce5636e5434ba721cc01692efcf0fbcfb082615e29afc1939a93de8882e9041a"
+    },
+    "figures\\fig03_paired_test_differences.png": {
+      "bytes": 167076,
+      "sha256": "5c267d3924be7ddb0f9d16f4aef362b9edca66c4c9b4cf0d314ffff2950b0336"
+    },
+    "figures\\fig03_paired_test_differences.svg": {
+      "bytes": 16837,
+      "sha256": "85263800c1be5191359f429f9947f9cf1d64c669c8df6ac7d5a3f02a90bb042f"
+    },
+    "figures\\fig04_state_reuse.png": {
+      "bytes": 685363,
+      "sha256": "f77eeaf0df9335bd9d543e39739e5e2494e52cbd8a94c0029f6bf423210c1d65"
+    },
+    "figures\\fig04_state_reuse.svg": {
+      "bytes": 59047,
+      "sha256": "f0b254b05f23e2cc88169765876c5ba1b2708e976141ad83dc224b95ecbc1dfc"
+    },
+    "figures\\fig05_q_diagnostics.png": {
+      "bytes": 420705,
+      "sha256": "89133f7aff69298474dd2c50ed25173100ac3c63369bfeb0b71aba02155680f1"
+    },
+    "figures\\fig05_q_diagnostics.svg": {
+      "bytes": 66864,
+      "sha256": "dfff99c00fd5b0d28e1e0e1a4885c9b8a89f836639b31d80a061385284fec590"
+    },
+    "figures\\fig06_opponents_and_cohorts.png": {
+      "bytes": 342124,
+      "sha256": "059a7f6229f01e6f611c695746b5c3e34f5fa6d837457120de702d0cddd17eb6"
+    },
+    "figures\\fig06_opponents_and_cohorts.svg": {
+      "bytes": 39445,
+      "sha256": "c12f445f4ea305d36a5f47513ff2c36ffdc172b933fd1a07b725adc3e48ea41a"
+    },
+    "figures\\fig07_resources.png": {
+      "bytes": 287383,
+      "sha256": "eef5f5cafea596e04df745cf6d9a619b21919acee792ea5ba163d8048f356598"
+    },
+    "figures\\fig07_resources.svg": {
+      "bytes": 33731,
+      "sha256": "a7eec1219d2a4e81342608e15225d7426c11c926ba1217acbf8902301bffebda"
+    },
+    "figures\\fig08_training_returns.png": {
+      "bytes": 1276837,
+      "sha256": "ecfa98eaf10e055876985dfb995cadf9d42ac0f03aa6e75b87beb9aece7a82f2"
+    },
+    "figures\\fig08_training_returns.svg": {
+      "bytes": 93208,
+      "sha256": "18df2f5e731c966f1514c134939f2248d39d1d156459c331fdadbba1a12c72ad"
+    },
+    "videos\\local_individual_mc_sarsa.avi": {
+      "bytes": 10270648,
+      "sha256": "394aa6207aaf49274e43ce161e100d4e45c56c882273ccaf07e3dee95fc4bd6d"
+    },
+    "videos\\local_individual_mc_sarsa.gif": {
+      "bytes": 2572497,
+      "sha256": "307cbc7b49eff120620b66433be6e837f777abff1ab5363e010a65b60f2338e4"
+    },
+    "videos\\local_individual_mc_sarsa_poster.png": {
+      "bytes": 57945,
+      "sha256": "6e6650874f8c508907f2bc1e51df3f965a803332aca3ca66beaf937179e36a3c"
+    },
+    "videos\\sarsa_four_conditions.avi": {
+      "bytes": 18989024,
+      "sha256": "517cf1dbb3a4bf686950fc6e7890f276847791a99d19b14d6c186896cedff1d8"
+    },
+    "videos\\sarsa_four_conditions.gif": {
+      "bytes": 4537381,
+      "sha256": "f23806ceac3221257c134aab76019ed0e2803f52b107a8cc244b07f22a3344aa"
+    },
+    "videos\\sarsa_four_conditions_poster.png": {
+      "bytes": 94368,
+      "sha256": "97f695f3340141043bb42aadc859743d75237bc8cb89dbf11ec47d421194208f"
+    },
+    "videos\\video_manifest.json": {
+      "bytes": 4138,
+      "sha256": "86cdcce9a140f0fb9e332a2eb7ff1b9195889a5e6d035163053e38f05d35bffd"
+    }
+  }
+}

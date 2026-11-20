@@ -1,0 +1,2 @@
+condition,algorithm,seed,validation_score,test_score,test_area,known_state_fraction
+local_individual_gross_b0,sarsa,7,0.75,1.0,0.5625,0.08333333333333333

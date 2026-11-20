@@ -1,0 +1,96 @@
+{
+  "config": {
+    "algorithms": [
+      "sarsa"
+    ],
+    "seeds": [
+      7
+    ],
+    "episodes": 2,
+    "ticks": 4,
+    "height": 4,
+    "width": 4,
+    "radius": 1,
+    "respawn_delay": 2,
+    "learner_count": 6,
+    "alpha": 0.1,
+    "gamma": 0.99,
+    "epsilon_start": 0.8,
+    "epsilon_end": 0.05,
+    "validation_pairs": 1,
+    "test_pairs": 1,
+    "train_opponent": "random",
+    "eval_opponents": [
+      "random"
+    ],
+    "observation_modes": [
+      "local"
+    ],
+    "diagnostic_interval": 1,
+    "diagnostic_pairs": 1,
+    "reward_specs": [
+      [
+        "individual",
+        "gross",
+        0.0
+      ]
+    ]
+  },
+  "python": "3.12.16 | packaged by Anaconda, Inc. | (main, Oct 26 2026, 20:13:05) [MSC v.1942 64 bit (AMD64)]",
+  "numpy": "2.5.4",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "encoding": "compact_v1",
+  "source_sha256": {
+    "smoke_test_mc_td\\config.py": "c8834bb1c3603df55a57ff22ab104aea07a68a0d784a6ebb614c568fd411215a",
+    "smoke_test_mc_td\\encoding.py": "3dc087ec60c81125ac6072d58139f15a40e5e4a88edf52765082084480998241",
+    "smoke_test_mc_td\\learning.py": "3f60f68b7376720978cc610879190de4709bc47d74e61e61588b4e8d2dc36468",
+    "smoke_test_mc_td\\run.py": "1ee00d4beb32df3a07d243859eace6d33d5b4d062cdc6c3447b14114f1ae7aaa",
+    "smoke_test_mc_td\\runner.py": "1a3b77ccd4fd4784fbb10dfe97a71849a240371748dc869b92afe5f35b74ac1f",
+    "smoke_test_mc_td\\runtime_metrics.py": "e00cf8e1dbb281c005c14ba565141293c78ef937094380f698d3c4eedd14ac70",
+    "smoke_test_mc_td\\test_maintenance.py": "abe9b9aecd12d82c31b59f382f38a75d6d3b0bf502b2484cbb9160511c08be23",
+    "smoke_test_mc_td\\test_smoke.py": "0fcc56eec42e507f498416e145eaee357462e4221a54daed9c947a1b3dc33165",
+    "smoke_test_mc_td\\test_viewer.py": "b923d45e2e61a54d5795708601c0344576863d15132ed67c29746c7bf1aea0a2",
+    "smoke_test_mc_td\\viewer.py": "3ff0f343f0044545a05e82fc11e2324720611807e56f7493c8bad4b8208d6405",
+    "smoke_test_mc_td\\__init__.py": "07b98d31a254bf070aa65e5a2c39a94fb65a0b1796906841743ae01fa75be7f5",
+    "territory_rl\\agent.py": "5c223c6411f1a6ab06276964b303f839285c3846e8351be8a1ebf4bb21de5e37",
+    "territory_rl\\attack.py": "845e28d481cd165044f04850ce9950fc8df314f3952720faa2117978b954971b",
+    "territory_rl\\cli.py": "e827bff1d0f1e01e632c6c74747bc04f00d3b8dfb4d309c1f3eeb5d84291c2cb",
+    "territory_rl\\config.py": "f5499576c1b4d1dfc64a4e6477056efd521b6d000fc7baadb9835a92ee32d46a",
+    "territory_rl\\controller.py": "e1b7f1087c9fa4f8c382e5c77a8e5fd01ffd77fc88e3a7233ae99e3f2c9fe34c",
+    "territory_rl\\environment.py": "a89b18a867bbe766f48704399e47608406a1f1eb70d756021e74e4427caa4f93",
+    "territory_rl\\events.py": "47661f815f1a727d15a4f1c47d5e5c60f3fbd47d0a520c493aee52b9406c5be5",
+    "territory_rl\\keyboard.py": "005ce807ed69ce483f53d9f21a1fa9acaa6111493e7f96def621670718a28215",
+    "territory_rl\\keyboard_demo.py": "920d0c528fb967cce55f3301867e87e5a6e693448f7231005809be92a23b8544",
+    "territory_rl\\manager.py": "0e67193124e8b4f8ce0e8bb1de0d3ad29fee7a14e6cdc7e859f0ac6d2a2b6da2",
+    "territory_rl\\map.py": "ef7bf0fe06545d62c7e327b9897d3f28ee25b7c24f5b0e9d04d4cc9dda8629f8",
+    "territory_rl\\metrics.py": "64e9f870bcc873082f69d8f2ea9f375bb8d6860652b7d65d0c9ddef5efd78699",
+    "territory_rl\\models.py": "bf44d1942c59c6769a95ca959cfeea4e9d87e2571acdaa6db59d62aaa22b0d80",
+    "territory_rl\\movement.py": "808564a96acb78061fbc11affe0397465781a387ec17ddbf57e330d6a54fb331",
+    "territory_rl\\observation.py": "1dd8ccdc63b628035f97c5e41bc2d99d9d4f5f9ee8af0aa40cf7570205015115",
+    "territory_rl\\parallel_env.py": "42009b74d4dc12f7101e7861c70cfc12d3374b993889f76efa477dba8d42e916",
+    "territory_rl\\respawn.py": "6421f7fc137bebd27e9141eb771a3572a967a6a0a28f872c26d740b41ad64b05",
+    "territory_rl\\reward.py": "d2f0982931e8ba9cd8cebf8a2c941aca833f9557ecebd45862a49e67fcde672f",
+    "territory_rl\\session.py": "108bb4da5679eda94d0cfd4bde8a0419bcd9570a57b0927ec405e067e4103d70",
+    "territory_rl\\visualization.py": "982c58f74952c67d39930a734e97361b3d19340b8bc2124224d09700b33365d8",
+    "territory_rl\\__init__.py": "3cdf6db62e56a11b91809f313ecba2e2207bfca0a618b833d351c25a4c3f6b8e",
+    "territory_rl\\__main__.py": "2864c805fd9f70d7ef62b59c67a503bd24c277dcb0d2b5c2fe636132523ade85"
+  },
+  "selection": "validation 점수, 최종 면적 비율 순으로 선택하며 완전 동률은 첫 seed를 유지합니다.",
+  "policy": "양 팀 6명 동시 학습, 독립 Q-table 6개, 묶음별 진영 교대",
+  "evaluation": "greedy 정책, 고정 평가 seed와 양쪽 진영; 양 팀 학습 시 두 묶음을 고정 상대에 각각 평가",
+  "evaluation_seed_domains": {
+    "master": 20261031,
+    "validation": 40,
+    "test": 50
+  },
+  "gymnasium": "1.4.0",
+  "pettingzoo": "1.27.0",
+  "cpu_logical_count": 8,
+  "cpu_descriptor": "Intel64 Family 6 Model 189 Stepping 1, GenuineIntel",
+  "started_at_utc": "2026-10-31T15:07:37.783430+00:00",
+  "diagnostics": "고정 validation 부분집합만 중간 평가; test로 학습·튜닝하지 않음; probe는 첫 에피소드 key 고정",
+  "status": "complete",
+  "finished_at_utc": "2026-10-31T15:07:38.108642+00:00",
+  "total_wall_seconds": 0.7331389000173658,
+  "total_cpu_seconds": 0.421875
+}

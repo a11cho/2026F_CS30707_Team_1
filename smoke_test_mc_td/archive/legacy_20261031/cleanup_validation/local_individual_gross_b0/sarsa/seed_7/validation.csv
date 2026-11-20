@@ -1,0 +1,5 @@
+team,ticks,score,win,draw,area_fraction,mean_return,red_area,blue_area,red_score,blue_score,red_mean_return,blue_mean_return,role_0_return,role_1_return,role_2_return,rejected,learner_rejected,deaths,captures,moves_failed,dead_samples,learner_samples,known_samples,split,opponent,pair,cohort
+0,4,1.0,1,0,0.5625,0.3333333333333333,9,7,1.0,0.0,0.3333333333333333,0.0,1.0,0.0,0.0,0,0,0,1,3,0,12,4,validation,random,0,0
+1,4,1.0,1,0,0.5625,0.3333333333333333,7,9,0.0,1.0,0.0,0.3333333333333333,0.0,0.0,1.0,0,0,1,1,2,2,12,3,validation,random,0,0
+0,4,1.0,1,0,0.5625,0.3333333333333333,9,7,1.0,0.0,0.3333333333333333,0.0,1.0,0.0,0.0,0,0,0,1,3,0,12,3,validation,random,0,1
+1,4,0.0,0,0,0.4375,0.0,9,7,1.0,0.0,0.3333333333333333,0.0,0.0,0.0,0.0,0,0,3,0,2,5,12,7,validation,random,0,1
