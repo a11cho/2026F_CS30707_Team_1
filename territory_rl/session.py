@@ -1,69 +1,137 @@
+import numpy as np
 from .models import AGENT_IDS, Action
 
 
 class ActionCollector:
+    """환경이 소유하는 틱/회차별 수집기. 물리 상태는 변경하지 않는다."""
+
     def __init__(self, environment):
-        """환경 참조와 비어 있는 행동 버퍼를 준비한다. 수집 전에 begin을 호출해야 한다."""
+        """비활성 수집기와 세션 무효화용 세대 번호를 준비한다."""
         self.environment = environment
-        self._actions = {}
+        self._generation = 0
+        self.clear()
+
+    def clear(self):
+        """모든 회차 버퍼와 토큰을 비운다. 이전에 발급한 세션은 무효다."""
+        self._generation += 1
         self._token = None
+        self.round = 0
+        self._actions = {}
+        self._requested = {}
+        self._observation_requested = {}
+        self._proposals = {}
+        self._history = []
+
+    @property
+    def active(self):
+        """현재 틱에서 수집이 진행 중인지 반환한다."""
+        return self._token is not None
+
+    @property
+    def next_agent(self):
+        """고정 ID 순서에서 아직 제출하지 않은 첫 에이전트를 반환한다."""
+        return next((a for a in AGENT_IDS if a not in self._actions), None)
 
     def begin(self):
-        """현재 (에피소드 ID, 틱)을 수집 토큰으로 고정하고 이전 행동 버퍼를 비운다.
-        같은 틱에 다시 호출해도 이전 제출을 지우므로 매 틱 수집 시작 시 한 번만 호출한다.
-        """
-        self._token = (self.environment.episode_id, self.environment.tick)
-        self._actions.clear()
+        """새 틱의 1차 수집을 시작한다. 진행 중 수집을 덮어쓰지 않는다."""
+        env = self.environment
+        env._require_reset()
+        if env.terminated or self.active:
+            raise RuntimeError("cannot begin a finished or active decision")
+        self.clear()
+        self.round = 1
+        self._set_token()
 
-    def session(self, aid):
-        """현재 수집 토큰과 aid에 묶인 AgentSession을 반환한다.
-        존재하지 않는 ID는 KeyError, begin 이전 호출은 RuntimeError로 알린다.
-        """
-        if aid not in AGENT_IDS:
-            raise KeyError(aid)
-        if self._token is None:
-            raise RuntimeError("begin a collection cycle first")
-        return AgentSession(self, aid, self._token)
+    def _set_token(self):
+        """현재 에피소드·틱·회차·세대에 묶인 토큰을 갱신한다."""
+        self._token = (self.environment.episode_id, self.environment.tick, self.round, self._generation)
 
     def _check(self, token):
-        """토큰이 현재 수집 주기와 환경의 에피소드·틱에 모두 일치하는지 검사한다.
-        전이나 reset 이후 남아 있는 오래된 세션 접근은 RuntimeError로 거부한다.
-        """
-        if token != self._token or token != (self.environment.episode_id, self.environment.tick):
-            raise RuntimeError("stale episode/tick session")
+        """이전 틱/회차/reset 세션 사용을 거부한다."""
+        if token is None or token != self._token or token[:2] != (self.environment.episode_id, self.environment.tick):
+            raise RuntimeError("stale episode/tick/round session")
 
-    def actions(self):
-        """현재 수집된 ID별 행동을 복사해 반환한다. 누락 행동의 정지 보완은 코어가 담당한다."""
+    def session(self, aid):
+        """현재 수집 회차와 에이전트 ID에 묶인 세션을 반환한다."""
         self._check(self._token)
-        return dict(self._actions)
+        if aid not in AGENT_IDS:
+            raise ValueError("unknown agent ID")
+        return AgentSession(self, aid, self._token)
+
+    def submit(self, aid, action, token):
+        """관측 방향 행동을 실제 맵 방향으로 변환해 검증·저장한다. 순차는 ID 순서를 강제한다."""
+        self._check(token)
+        if aid in self._actions:
+            raise ValueError("one submission per agent per round")
+        if self.environment.decision_strategy == "sequential" and aid != self.next_agent:
+            raise ValueError("submit in AGENT_IDS order for sequential decisions")
+        observed = Action.parse(action)
+        requested = self.environment.action_to_world(observed)
+        applied = requested if self.environment.action_mask(aid)[requested.index] else Action.NOOP
+        self._requested[aid], self._actions[aid] = requested, applied
+        self._observation_requested[aid] = observed
+
+    def context(self, aid):
+        """관측자에게 공개 가능한 같은 틱 행동의 복사본을 반환한다. 적 행동은 제외한다."""
+        codes = np.zeros(3, dtype=np.int8)
+        if not self.active:
+            return codes, 0, "none"
+        self._check(self._token)
+        strategy = self.environment.decision_strategy
+        source = self._proposals if strategy == "feedback" and self.round == 2 else self._actions
+        team = aid.split("_")[0]
+        for number in range(3):
+            key = f"{team}_{number}"
+            visible = strategy == "sequential" or (strategy == "feedback" and self.round == 2) or key == aid
+            if visible and key in source:
+                codes[number] = int(source[key])
+        label = "first_pass_proposal" if strategy == "feedback" and self.round == 2 else "current_committed"
+        return codes, self.round, label
+
+    def finish_round(self):
+        """누락을 정지로 채워 회차를 마감한다. 되먹임 1차면 2차로 전환하고 None을 반환한다.
+
+        최종 회차라면 (원요청 행동, 회차 로그)를 반환한다. 최종 step에서 원요청을 다시
+        검증하므로 금지 행동의 rejected 이벤트를 잃지 않는다. 공개 제안은 정규화된 값이다.
+        """
+        self._check(self._token)
+        for aid in AGENT_IDS:
+            if aid not in self._actions:
+                self.submit(aid, Action.NOOP, self._token)
+        self._history.append({"round": self.round,
+                              "observation_requested": {a: int(v) for a, v in self._observation_requested.items()},
+                              "requested": {a: int(v) for a, v in self._requested.items()},
+                              "applied": {a: int(v) for a, v in self._actions.items()}})
+        if self.environment.decision_strategy == "feedback" and self.round == 1:
+            self._proposals = self._actions.copy()
+            self._actions, self._requested = {}, {}
+            self._observation_requested = {}
+            self.round = 2
+            self._set_token()
+            return None
+        return self._requested.copy(), list(self._history)
 
 
 class AgentSession:
-    """Per-tick facade; no game mutation or step/reset API is exposed."""
     def __init__(self, collector, aid, token):
-        """collector, 에이전트 ID, 발급 시 토큰을 저장한다. 게임 상태는 소유하지 않는다."""
+        """접속한 팀·번호와 수집 토큰을 보관한다. 전이/reset 권한은 제공하지 않는다."""
         self._collector, self.agent_id, self._token = collector, aid, token
+        self.team_id, number = aid.rsplit("_", 1)
+        self.agent_number = int(number)
 
     def observe(self):
-        """세션 유효성을 검사한 뒤 해당 에이전트의 관측 사전을 반환한다. 틱은 진행하지 않는다."""
+        """저장된 팀·번호로 환경에 관측을 요청한다. 전략/컨텍스트는 환경이 선택한다."""
         self._collector._check(self._token)
-        return self._collector.environment.observe(self.agent_id)
+        return self._collector.environment.observe(self.team_id, self.agent_number)
 
     def available_actions(self):
-        """현재 mask에서 허용한 Action들을 튜플로 반환한다.
-        사망 대기 중에는 빈 튜플을 반환한다. 환경 API의 처리용 NOOP과 사용자 선택 가능 행동을 구별한다.
-        """
+        """마스크를 실행 코드로 변환한다. 사망자는 사용자 선택 가능한 행동이 없다."""
         obs = self.observe()
-        if not obs["self_features"][2]:
+        auxiliary = obs["auxiliary"]
+        if not auxiliary["agent_alive"][auxiliary["self_index"]]:
             return ()
-        return tuple(Action(i) for i, valid in enumerate(obs["action_mask"]) if valid)
+        return tuple(Action.from_index(i) for i in np.flatnonzero(auxiliary["action_mask"]))
 
     def submit_action(self, action):
-        """행동값을 검증해 이번 틱 버퍼에 한 번 제출한다.
-        동일 ID의 중복 제출은 ValueError로 거부한다. 실제 상태 전이와 mask 판정은 이후 코어 step이 수행한다.
-        """
-        self._collector._check(self._token)
-        if self.agent_id in self._collector._actions:
-            raise ValueError("one submission per agent per tick")
-        self._collector._actions[self.agent_id] = Action.parse(action)
-
+        """현재 회차에 관측 방향 행동을 한 번 제출한다. 1차 제안과 최종 행동은 구분된다."""
+        self._collector.submit(self.agent_id, action, self._token)

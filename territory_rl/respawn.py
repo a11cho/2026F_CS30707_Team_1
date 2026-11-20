@@ -27,7 +27,7 @@ def respawn_due_agents(agents, owner, tick, rng):
                 continue
             p = candidates.pop(int(rng.integers(len(candidates))))
             due_tick = a.respawn_at
-            a.position, a.respawn_at = p, None
+            a.position, a.respawn_at, a.alive = p, None, True
             occupied.add(p)
             events.append(Event("respawn", a.agent_id, p, due_tick=due_tick))
     return events

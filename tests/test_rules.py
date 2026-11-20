@@ -12,20 +12,22 @@ def scenario(positions=None, owner=None, delay=2, ticks=20, experiment=None, tic
     """지정 좌표·소유권·부활 지연으로 6×6 테스트 환경을 만들어 반환한다.
     생존자의 시작 칸은 해당 팀 소유로 맞추고, 좌표가 None인 에이전트는 부활 대기로 설정한다.
     """
-    cfg = GameConfig(height=6, width=6, max_ticks=ticks, respawn_delay=delay, observation_radius=2)
+    cfg = GameConfig(height=6, width=6, max_ticks=ticks, respawn_delay=delay)
     if owner is None:
         owner = np.zeros((6, 6), dtype=np.int8)
         owner[:, 3:] = 1
     else:
         owner = owner.copy()
-    base = dict(zip(AGENT_IDS, [(0, 0), (1, 0), (2, 0), (0, 5), (1, 5), (2, 5)]))
+    defaults = dict(zip(AGENT_IDS, [(0, 0), (1, 0), (2, 0), (0, 5), (1, 5), (2, 5)]))
+    base = defaults.copy()
     base.update(positions or {})
     agents = []
     for i, aid in enumerate(AGENT_IDS):
         p = base[aid]
         if p is not None:
             owner[p] = i//3
-        agents.append(AgentState(aid, i//3, p, respawn_at=0 if p is None else None))
+        agents.append(AgentState(aid, i//3, defaults[aid] if p is None else p,
+                                 respawn_at=0 if p is None else None, alive=p is not None))
     env = TerritoryEnvironment(cfg, experiment)
     env.reset(123, {"owner": owner, "agents": agents, "tick": tick})
     return env
@@ -37,7 +39,7 @@ def agent(env, aid):
 
 
 def test_attack_majority_tie_credit_and_cooldown():
-    """공격 동률 유지, 다음 틱 공격 제한, 다수 공격 성공과 공동 기여도 분배를 검증한다."""
+    """공격 동률 유지, 다음 틱 공격 제한, 다수 공격 성공과 공동 점령 참여를 검증한다."""
     env = scenario({"red_0": (2, 2), "red_1": (3, 3), "blue_0": (2, 4)})
     original = env.snapshot().owner[2, 3]
     r = env.step({"red_0": A.ATTACK_RIGHT, "blue_0": A.ATTACK_LEFT})
@@ -49,8 +51,8 @@ def test_attack_majority_tie_credit_and_cooldown():
     assert env.action_mask("red_0")[5:].all()
     r = env.step({"red_0": A.ATTACK_RIGHT, "red_1": A.ATTACK_UP, "blue_0": A.ATTACK_LEFT})
     assert env.snapshot().owner[2, 3] == 0
-    assert r.credits["red_0"] == r.credits["red_1"] == .5
-    assert sum(r.credits.values()) == 1
+    assert r.credits["red_0"] == r.credits["red_1"] == 1
+    assert sum(r.credits.values()) == 2
 
 
 def test_friendly_attack_consumes_cooldown_without_credit():
@@ -60,7 +62,7 @@ def test_friendly_attack_consumes_cooldown_without_credit():
     assert sum(r.credits.values()) == 0
     assert not env.action_mask("red_0")[5:].any()
     env.step({})
-    assert env.action_mask("red_0")[A.ATTACK_RIGHT]
+    assert env.action_mask("red_0")[A.ATTACK_RIGHT.index]
 
 
 def test_mutual_attacks_survive_simultaneous_attacker_death():
@@ -84,7 +86,7 @@ def test_attack_kill_cancels_escape_and_releases_occupancy():
 def test_move_into_tile_captured_same_tick_and_enemy_move_death():
     """같은 틱 아군이 칠한 타일에는 이동할 수 있고, 적 타일로 그대로 이동하면 죽는지 검증한다."""
     env = scenario({"red_0": (2, 2), "red_1": (1, 3)})
-    assert env.action_mask("red_0")[A.RIGHT]  # Enemy ownership is not an invalid action.
+    assert env.action_mask("red_0")[A.RIGHT.index]  # Enemy ownership is not an invalid action.
     env.step({"red_0": A.RIGHT, "red_1": A.ATTACK_DOWN})
     assert agent(env, "red_0").position == (2, 3)
     r = env.step({"red_0": A.RIGHT})
@@ -120,15 +122,29 @@ def test_no_final_tick_respawn_and_terminal_rewards():
         env.step({})
 
 
-def test_zero_territory_remains_to_horizon():
-    """영역이 0인 팀은 부활 없이 대기하면서도 게임은 T까지 지속되고 종료 패배 보상을 받는지 검증한다."""
-    env = scenario({a: None for a in AGENT_IDS[3:]}, owner=np.zeros((6, 6)), ticks=4)
-    for t in range(1, 5):
-        r = env.step({})
-        assert env.snapshot().areas == (36, 0)
-        assert all(not agent(env, a).alive for a in AGENT_IDS[3:])
-        assert r.terminated == (t == 4)
-    assert r.rewards["blue_0"] == -1
+def test_last_tile_capture_ends_episode_without_respawn():
+    """마지막 아군 타일을 잃어 전멸하면 T 이전에 종료하고 terminal 보상을 한 번 지급한다."""
+    owner = np.zeros((6, 6), dtype=np.int8)
+    owner[2, 3] = 1
+    positions = {a: None for a in AGENT_IDS[3:]}
+    positions.update(red_0=(2, 2), blue_0=(2, 3))
+    env = scenario(positions, owner=owner, delay=0, ticks=4,
+                   experiment=ExperimentConfig(team_signal="terminal", loss_reward=-1))
+    r = env.step({"red_0": A.ATTACK_RIGHT})
+    assert r.terminated and r.tick == 1
+    assert r.termination_reasons == ("team_eliminated",) and r.eliminated_teams == ("blue",)
+    assert r.area_after == (36, 0)
+    assert all(not agent(env, a).alive for a in AGENT_IDS[3:])
+    assert not any(e.kind == "respawn" for e in r.events)
+    assert r.rewards["blue_0"] == -1 and r.rewards["red_0"] == 1
+    with pytest.raises(RuntimeError):
+        env.step({})
+
+
+def test_eliminated_reset_scenario_is_rejected():
+    """시작부터 복귀 불가능한 시나리오는 진행 가능한 초기 상태로 받지 않는다."""
+    with pytest.raises(ValueError, match="eliminated"):
+        scenario({a: None for a in AGENT_IDS[3:]}, owner=np.zeros((6, 6)))
 
 
 def test_respawn_shortage_no_overlap():
@@ -166,7 +182,7 @@ def test_movement_against_exhaustive_simultaneous_constraint_solver():
     cells = [(r, c) for r in range(3) for c in range(3)]
     for _ in range(150):
         positions = {str(i): cells[int(j)] for i, j in enumerate(rng.choice(9, 4, replace=False))}
-        actions = {a: A(int(rng.integers(5))) for a in positions}
+        actions = {a: A(int(rng.integers(1, 6))) for a in positions}
         targets = {a: action.target(positions[a]) for a, action in actions.items() if action.is_move}
         eligible = [a for a, p in targets.items() if p in cells and list(targets.values()).count(p) == 1]
         best = []
@@ -183,7 +199,7 @@ def test_movement_against_exhaustive_simultaneous_constraint_solver():
         assert actual == expected
 
 
-@pytest.mark.parametrize("bad", [-1, 9, 1.5, True, "1", None])
+@pytest.mark.parametrize("bad", [-1, 0, 10, 1.5, True, "1", None])
 def test_invalid_action_is_atomic(bad):
     """잘못된 행동이 섞이면 다른 에이전트의 유효 행동도 적용되지 않고 틱·맵·상태가 유지되는지 검증한다."""
     env = scenario()
@@ -206,20 +222,20 @@ def test_reset_scenario_validation():
 
 
 @pytest.mark.parametrize("mode,signal,bonus,expected", [
-    ("individual", "net", 0, (1., 0., 0.)),
-    ("team", "net", 0, (1/3, 1/3, 1/3)),
-    ("team", "gross", 0, (1/3, 1/3, 1/3)),
+    ("individual", "area", 0, (1., 0., 0.)),
+    ("team", "area", 0, (19., 19., 19.)),
+    ("team", "gap", 0, (2., 2., 2.)),
     ("team", "terminal", 1, (1., 1., 1.)),
 ])
 def test_reward_modes(mode, signal, bonus, expected):
-    """개인 기여·팀 순증가·팀 총획득·종료 승패 모드의 보상 수치가 예상과 일치하는지 검증한다."""
-    env = scenario({"red_0": (2, 2)}, ticks=1, experiment=ExperimentConfig(reward_mode=mode, team_signal=signal, terminal_bonus=bonus))
+    """개인 점령과 팀 면적·격차·종료 보상 값을 검증한다."""
+    env = scenario({"red_0": (2, 2)}, ticks=1, experiment=ExperimentConfig(reward_mode=mode, team_signal=signal, include_terminal_reward=bool(bonus)))
     r = env.step({"red_0": A.ATTACK_RIGHT})
     assert tuple(r.rewards[a] for a in AGENT_IDS[:3]) == pytest.approx(expected)
 
 
 def test_dead_team_member_receives_shared_reward():
     """틱 시작에 부활 대기 중인 팀원도 같은 틱의 팀 공유 보상을 받는지 검증한다."""
-    env = scenario({"red_0": (2, 2), "red_2": None})
+    env = scenario({"red_0": (2, 2), "red_2": None}, experiment=ExperimentConfig(team_signal="area"))
     r = env.step({"red_0": A.ATTACK_RIGHT})
-    assert r.rewards["red_2"] == r.rewards["red_0"] == pytest.approx(1/3)
+    assert r.rewards["red_2"] == r.rewards["red_0"] == 19

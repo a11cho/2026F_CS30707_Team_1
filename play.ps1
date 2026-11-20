@@ -1,4 +1,13 @@
-param([switch]$ManualAll)
+param(
+    [switch]$ManualAll,
+    [ValidateSet('independent', 'sequential', 'feedback')]
+    [string]$Strategy = 'independent',
+    [ValidateCount(3, 3)]
+    [ValidateSet(0, 1)]
+    [int[]]$RewardMask = @(1, 0, 0),
+    [int]$ObservationWindowSize = 15,
+    [switch]$RandomizeObservationRotation
+)
 $ErrorActionPreference = 'Stop'
 $projectPython = Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
 if (-not (Test-Path -LiteralPath $projectPython)) {
@@ -6,6 +15,9 @@ if (-not (Test-Path -LiteralPath $projectPython)) {
 }
 Push-Location $PSScriptRoot
 try {
-    if ($ManualAll) { & $projectPython -m territory_rl --manual-all }
-    else { & $projectPython -m territory_rl }
+    $playArguments = @('-m', 'territory_rl', '--strategy', $Strategy, '--reward-mask') + $RewardMask + @(
+        '--observation-window-size', $ObservationWindowSize)
+    if ($ManualAll) { $playArguments += '--manual-all' }
+    if ($RandomizeObservationRotation) { $playArguments += '--randomize-observation-rotation' }
+    & $projectPython @playArguments
 } finally { Pop-Location }

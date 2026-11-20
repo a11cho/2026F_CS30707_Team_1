@@ -45,8 +45,8 @@ class KeyboardDemo:
         label("Debug view: full map / simultaneous 3v3", font=("Segoe UI", 10))
         self.status = label("", font=("Consolas", 11), width=36)
         self.roster = label("", font=("Consolas", 10), width=36)
-        label("W A S D   Move\nArrows / I J K L   Attack\nSpace   Queue NOOP\n1-6 / Tab   Select agent\nEnter   Step one tick\nP   Play / pause   |   R   Reset\nEsc   Close", font=("Segoe UI", 11))
-        for name, callback in (("Step  [Enter]", self.step), ("Play / Pause  [P]", self.toggle), ("Reset  [R]", self.reset)):
+        label("W A S D   Move\nArrows / I J K L   Attack\nSpace   Queue NOOP\n1-6 / Tab   Select agent\nEnter   Submit decision stage\nP   Play / pause   |   R   Reset\nEsc   Close", font=("Segoe UI", 11))
+        for name, callback in (("Submit / Step  [Enter]", self.step), ("Play / Pause  [P]", self.toggle), ("Reset  [R]", self.reset)):
             tk.Button(panel, text=name, command=callback, takefocus=False, bg="#26374f", fg="white", relief="flat").pack(fill="x", pady=3)
         self.events_label = label("", font=("Consolas", 9), wraplength=340, height=8)
         self.root.bind("<KeyPress>", self.on_key)
@@ -58,7 +58,8 @@ class KeyboardDemo:
         """현재 선택·수동 모드에 맞는 ID별 컨트롤러 사전을 만든다.
         키보드 인스턴스는 재사용하고 scripted 컨트롤러는 지정 시드로 새로 생성한다.
         """
-        bots = {aid: FrontierController(self.seed+i, "aggressive" if i >= 3 else "expand") for i, aid in enumerate(AGENT_IDS)}
+        bots = {aid: FrontierController(self.seed+i, "aggressive" if i >= 3 else "expand", self.env.experiment.tile_encoding)
+                for i, aid in enumerate(AGENT_IDS)}
         return {aid: self.keyboards[aid] if self.manual_all or aid == self.selected else bots[aid] for aid in AGENT_IDS}
 
     def _write_reset(self):
@@ -67,13 +68,14 @@ class KeyboardDemo:
         """
         if self.log:
             self.log.write(json.dumps({"type": "reset", "seed": self.seed, "game": asdict(self.env.config),
-                                       "experiment": asdict(self.env.experiment)}) + "\n")
+                                       "experiment": asdict(self.env.experiment),
+                                       "observation_rotation": self.env.observation_rotation}) + "\n")
             self.log.flush()
 
     def on_key(self, event):
         """Tk KeyPress 이벤트를 행동 예약 또는 진행·선택·초기화·종료 명령으로 해석한다.
 
-        이동/공격 키는 예약만 하며 Enter가 한 틱을 진행한다. 한 명 수동 모드에서
+        이동/공격 키는 예약만 하며 Enter가 현재 결정 단계를 제출한다. 한 명 수동 모드에서
         조작 대상을 바꾸면 이전 대상을 scripted로 되돌리고 남은 예약 키를 비운다.
         반환값 'break'는 Tk의 후속 기본 키 처리를 막는다.
         """
@@ -92,7 +94,8 @@ class KeyboardDemo:
             self.selected = AGENT_IDS[(AGENT_IDS.index(previous)+1) % 6] if key == "tab" else AGENT_IDS[int(key)-1]
             if not self.manual_all:
                 self.keyboards[previous].clear()
-                self.manager.controllers[previous] = FrontierController(self.seed+AGENT_IDS.index(previous))
+                self.manager.controllers[previous] = FrontierController(
+                    self.seed+AGENT_IDS.index(previous), tile_encoding=self.env.experiment.tile_encoding)
                 self.manager.controllers[self.selected] = self.keyboards[self.selected]
         else:
             self.keyboards[self.selected].feed_key(key)
@@ -101,16 +104,25 @@ class KeyboardDemo:
         return "break"
 
     def step(self):
-        """manager를 한 번 실행하고 행동·결과 로그와 화면을 갱신한다.
-        경기가 끝났거나 창이 닫혔으면 전이하지 않는다. 종료 틱에 도달하면 자동 진행을 멈춘다.
+        """결정 단계를 한 번 진행하고 최종 전이가 발생한 경우만 결과와 로그를 갱신한다.
+        경기가 끝났거나 창이 닫혔으면 전이하지 않는다. 순차는 한 명씩, 되먹임은 한 회차씩 Enter로 제출한다. 종료하면 자동 진행을 멈춘다.
         """
         if self.closed or self.env.terminated:
             self.pause()
             return
-        self.last_result = self.manager.step()
+        result = self.manager.advance()
+        if result is None:
+            if self.manual_all and self.env.next_decision_agent is not None:
+                self.selected = self.env.next_decision_agent
+            self.refresh()
+            return
+        self.last_result = result
+        if self.manual_all and self.env.decision_strategy == "sequential":
+            self.selected = AGENT_IDS[0]
         if self.log:
             record = self.last_result.to_dict()
-            record.update(type="step", actions={a: int(v) for a, v in self.manager.last_actions.items()})
+            record.update(type="step", actions={a: int(v) for a, v in self.manager.last_actions.items()},
+                          decision=self.env.last_decision)
             self.log.write(json.dumps(record) + "\n")
             self.log.flush()
         if self.env.terminated:
@@ -134,7 +146,7 @@ class KeyboardDemo:
         self.refresh()
 
     def _timer(self):
-        """Tk 타이머 호출 시 한 틱을 진행하고 계속 실행 중일 때만 다음 타이머를 예약한다.
+        """Tk 타이머 호출 시 한 결정 단계를 진행하고 계속 실행 중일 때만 다음 타이머를 예약한다.
         처리 시작 시 기존 타이머 ID를 비워 취소된 작업이나 중복 예약이 남지 않게 한다.
         """
         self.after_id = None
@@ -161,21 +173,29 @@ class KeyboardDemo:
         전역 맵을 보여 주는 디버그 화면이며 에이전트 관측 범위와는 다르다. 게임 틱은 진행하지 않는다.
         """
         snapshot = self.env.snapshot()
-        self.renderer.draw(snapshot, self.selected)
+        self.renderer.draw(snapshot, self.selected, self.env.observation_rotation)
         pending = self.keyboards[self.selected].pending
         mode = "FINISHED" if snapshot.terminated else ("RUNNING" if self.running else "PAUSED")
-        self.status.config(text=f"{mode}   Tick {snapshot.tick}/{snapshot.max_ticks}\nRED {snapshot.areas[0]}   BLUE {snapshot.areas[1]}\nSelected: {self.selected}\nQueued: {pending.name if pending is not None else 'NOOP (default)'}\nMode: {'all manual' if self.manual_all else 'selected human + 5 bots'}")
+        team, number = self.selected.rsplit("_", 1)
+        observation = self.env.observe(team, int(number))
+        visible = [Action(int(c)).name if c else "?" for c in observation["team_actions"]]
+        auxiliary = observation["auxiliary"]
+        stage = f"Strategy: {self.env.decision_strategy} / round {self.env.decision_round or 1}"
+        next_aid = self.env.next_decision_agent or (AGENT_IDS[0] if not self.env.terminated else "finished")
+        mask = self.env.experiment.resolved_reward_mask
+        decision_info = f"\n{stage}\nRotation: {self.env.observation_rotation * 90} deg CW\nReward mask (area/gap/end): {''.join(map(str, mask))}\nNext: {next_aid}\n{auxiliary['action_source']}:\n{' / '.join(visible)}"
+        self.status.config(text=f"{mode}   Tick {snapshot.tick}/{snapshot.max_ticks}\nRED {snapshot.areas[0]}   BLUE {snapshot.areas[1]}\nSelected: {self.selected}\nQueued: {pending.name if pending is not None else 'NOOP (default)'}\nMode: {'all manual' if self.manual_all else 'selected human + 5 bots'}" + decision_info)
         lines = []
         for index, a in enumerate(snapshot.agents):
-            state = str(a.position) if a.alive else f"dead; due {a.respawn_at}"
+            state = str(a.position) if a.alive else f"dead at {a.position}; due {a.respawn_at}"
             ready = bool(self.env.action_mask(a.agent_id)[5:].any())
             queued = self.keyboards[a.agent_id].pending
             short_actions = ("wait", "up", "down", "left", "right", "atkU", "atkD", "atkL", "atkR")
-            suffix = f" [{short_actions[int(queued)]}]" if queued is not None else ""
+            suffix = f" [{short_actions[queued.index]}]" if queued is not None else ""
             lines.append(f"{index+1} {a.agent_id:6} {state:15} {'ATK' if ready else '---'}{suffix}")
         self.roster.config(text="\n".join(lines))
         recent = [] if self.last_result is None else [e for e in self.last_result.events if e.kind != "move" or e.reason != "success"]
-        self.events_label.config(text="Last tick events\n" + ("\n".join(f"{e.kind}: {e.agent_id or e.position} {e.reason}" for e in recent[-7:]) or "No events"))
+        self.events_label.config(text=("End: " + ", ".join(self.last_result.termination_reasons) + "\n" if self.last_result and self.last_result.terminated else "Last tick events\n") + ("\n".join(f"{e.kind}: {e.agent_id or e.position} {e.reason}" for e in recent[-7:]) or "No events"))
 
     def close(self):
         """타이머를 중단하고 로그 파일과 창을 닫는다. 여러 번 호출해도 종료 처리는 한 번만 한다."""

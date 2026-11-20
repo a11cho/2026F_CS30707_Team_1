@@ -2,6 +2,7 @@ from typing import Protocol
 from collections import deque
 import numpy as np
 from .models import Action
+from .config import TileEncoding
 
 
 class AgentController(Protocol):
@@ -23,64 +24,70 @@ class RandomController:
 
     def act(self, observation):
         """관측의 action_mask가 허용한 행동 중 하나를 균등하게 뽑아 반환한다. 정책 RNG만 소비한다."""
-        return Action(int(self.rng.choice(np.flatnonzero(observation["action_mask"]))))
+        return Action.from_index(int(self.rng.choice(np.flatnonzero(observation["auxiliary"]["action_mask"]))))
 
 
 class FrontierController(RandomController):
-    """Local-only baseline: capture adjacent cells, otherwise path to visible frontier."""
-    def __init__(self, seed=None, style="expand"):
-        """전용 RNG와 확장·공격·방어 중 scripted 행동 스타일을 준비한다. 미지원 스타일은 오류다."""
+    """요청자 기준 전체 맵만 사용하는 점령/경계 복귀용 scripted 컨트롤러다."""
+
+    def __init__(self, seed=None, style="expand", tile_encoding=None):
+        """전용 RNG와 확장·공격·방어 중 행동 스타일을 준비한다."""
         super().__init__(seed)
         if style not in ("expand", "aggressive", "defend"):
             raise ValueError("unknown scripted style")
         self.style = style
+        self.tile_encoding = tile_encoding or TileEncoding()
 
     def act(self, observation):
-        """지역 관측만 사용해 공격 또는 전선 접근 행동을 선택한다.
+        """인접 적 땅을 공격하고, 공격할 땅이 없으면 아군 땅을 따라 경계까지 BFS로 이동한다.
 
-        인접 적 타일을 공격하되 aggressive는 적 에이전트가 있는 칸을 더 우선한다.
-        defend는 인접 아군 위치의 방어 공격을 우선한다. 공격할 수 없으면 BFS로
-        보이는 아군 땅 안의 전선 경로를 찾고, 적 타일 앞의 cooldown 중에는 대기한다.
-        환경 상태를 직접 수정하지 않으며 동률 선택 등에 정책 전용 RNG를 사용한다.
+        사망 중에는 정지한다. 모든 판단은 상대적 관측만 사용하며 내부 환경에 접근하지 않는다.
         """
-        if not observation["self_features"][2]:
+        auxiliary = observation["auxiliary"]
+        me = auxiliary["self_index"]
+        if not auxiliary["agent_alive"][me]:
             return Action.NOOP
-        grid, mask = observation["local_grid"], observation["action_mask"]
-        radius = grid.shape[1] // 2
-        center = (radius, radius)
+        tilemap, mask = observation["tilemap"], auxiliary["action_mask"]
+        encoding = self.tile_encoding
+        friendly = np.isin(tilemap, encoding.friendly_tiles)
+        enemy = np.isin(tilemap, encoding.enemy_tiles)
+        start = (tilemap.shape[0] // 2, tilemap.shape[1] // 2)
+        allies = {tuple(p) for p in np.argwhere(np.isin(tilemap, encoding.friendly_agents))} - {start}
+        enemies = {tuple(p) for p in np.argwhere(np.isin(tilemap, encoding.enemy_agents))}
+
+        def contains(p):
+            """관측 격자의 경계 안에 있는 좌표인지 확인한다."""
+            return (0 <= p[0] < tilemap.shape[0] and 0 <= p[1] < tilemap.shape[1]
+                    and tilemap[p] != encoding.outside)
+
+        def frontier(p):
+            """주어진 칸이 적 땅과 상하좌우로 맞닿는지 확인한다."""
+            return any(contains(q) and enemy[q] for q in (a.target(p) for a in Action if a.is_move))
+
         attacks = []
-        for action in list(Action)[5:]:
-            p = action.target(center)
-            if mask[action] and grid[1][p]:
-                score = 1 + (3*grid[5][p] if self.style == "aggressive" else 0)
-                attacks.append((score, action))
-            if self.style == "defend" and mask[action] and grid[4][p]:
+        for action in Action:
+            if not action.is_attack or not mask[action.index]:
+                continue
+            p = action.target(start)
+            if enemy[p]:
+                attacks.append((1 + (3 if self.style == "aggressive" and p in enemies else 0), action))
+            elif self.style == "defend" and p in allies:
                 attacks.append((5, action))
         if attacks:
             best = max(score for score, _ in attacks)
             return Action(int(self.rng.choice([a for score, a in attacks if score == best])))
-        # BFS through friendly, visibly unoccupied cells to a cell next to enemy land.
-        queue = deque([(center, Action.NOOP)])
-        visited = {center}
-        directions = list(self.rng.permutation([1, 2, 3, 4]))
+        if frontier(start):
+            return Action.NOOP
+        queue, visited = deque([(start, Action.NOOP)]), {start}
+        directions = [Action(int(i)) for i in self.rng.permutation([int(a) for a in Action if a.is_move])]
         while queue:
             cell, first = queue.popleft()
-            if cell != center and any(0 <= q[0] < grid.shape[1] and 0 <= q[1] < grid.shape[2] and grid[1][q]
-                                      for q in (Action(i).target(cell) for i in range(1, 5))):
+            if cell != start and frontier(cell):
                 return first
-            for i in directions:
-                action = Action(int(i))
+            for action in directions:
                 q = action.target(cell)
-                if q in visited or not (0 <= q[0] < grid.shape[1] and 0 <= q[1] < grid.shape[2]):
-                    continue
-                if not grid[0][q] or grid[4][q] or grid[5][q]:
+                if q in visited or not contains(q) or not friendly[q] or q in allies or q in enemies:
                     continue
                 visited.add(q)
-                queue.append((q, action if cell == center else first))
-        # Attack cooldown often makes waiting at the frontier preferable to suicide.
-        if any(grid[1][Action(i).target(center)] for i in range(1, 5)):
-            return Action.NOOP
-        moves = [Action(i) for i in range(1, 5) if mask[i] and grid[0][Action(i).target(center)]
-                 and not grid[4][Action(i).target(center)]]
-        return Action(int(self.rng.choice(moves))) if moves else Action.NOOP
-
+                queue.append((q, action if cell == start else first))
+        return Action.NOOP

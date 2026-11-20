@@ -1,32 +1,32 @@
 from .models import AGENT_IDS
 
 
-def calculate_rewards(experiment, before, after, events, terminated):
-    """전후 면적과 점령 이벤트로 (ID별 보상, ID별 점령 기여도) 사전을 반환한다.
+def calculate_rewards(experiment, areas, events, terminated):
+    """전이 후 면적과 점령 이벤트로 ID별 보상, 점령 참여 횟수, 보상 항을 반환한다.
 
-    공동 점령의 기여도는 해당 타일을 획득한 공격자 수로 균등 분할한다.
-    individual은 본인 기여도, team은 선택된 면적 신호의 1/3을 기본 보상으로 사용한다.
-    종료 시에만 승/무/패의 +1/0/-1에 terminal_bonus를 곱해 각 팀원에게 더한다.
+    점령에 참여한 공격자마다 점령 횟수를 1 올리고, individual에서는 각자 capture_weight를
+    지급한다. 팀 시그널은 (면적, 격차, 종료) 마스크로 선택한다.
+    면적과 격차는 각 값에 가중치를 곱해 팀원마다 지급한다. 종료 항은 종료 때만 준다.
     사망 대기 중인 팀원도 포함하며, 게임 상태나 난수 상태를 변경하지 않는다.
     """
     credits = dict.fromkeys(AGENT_IDS, 0.0)
-    gains = [0, 0]
     for event in events:
         if event.kind == "capture":
-            gains[event.new_owner] += 1
             for aid in event.contributors:
-                credits[aid] += 1 / len(event.contributors)
-    outcomes = (int(after[0] > after[1]) - int(after[0] < after[1]),
-                int(after[1] > after[0]) - int(after[1] < after[0]))
-    rewards = {}
+                credits[aid] += 1
+    outcomes = (int(areas[0] > areas[1]) - int(areas[0] < areas[1]),
+                int(areas[1] > areas[0]) - int(areas[1] < areas[0]))
+    rewards, components = {}, {}
+    area_on, gap_on, terminal_on = experiment.resolved_reward_mask
     for index, aid in enumerate(AGENT_IDS):
         team = index // 3
-        if experiment.reward_mode == "individual":
-            base = credits[aid]
-        else:
-            signals = {"net": after[team] - before[team], "gross": gains[team],
-                       "area": after[team], "terminal": 0}
-            base = signals[experiment.team_signal] / 3
-        rewards[aid] = float(base + (experiment.terminal_bonus * outcomes[team] if terminated else 0))
-    return rewards, credits
+        capture = experiment.capture_weight if experiment.reward_mode == "individual" and credits[aid] else 0.0
+        area = experiment.area_weight * areas[team] if area_on else 0.0
+        gap = experiment.gap_weight * (areas[team] - areas[1-team]) if gap_on else 0.0
+        outcome_reward = {1: experiment.win_reward, -1: experiment.loss_reward, 0: experiment.draw_reward}[outcomes[team]]
+        terminal = float(outcome_reward if terminated and terminal_on else 0)
+        components[aid] = {"capture": float(capture), "area": float(area),
+                           "gap": float(gap), "terminal": terminal}
+        rewards[aid] = float(sum(components[aid].values()))
+    return rewards, credits, components
 

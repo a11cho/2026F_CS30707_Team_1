@@ -1,51 +1,121 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 
 
 @dataclass(frozen=True)
-class GameConfig:
-    height: int = 12
-    width: int = 16
-    max_ticks: int = 256
-    respawn_delay: int = 2
-    observation_radius: int = 3
-    initial_placement: str = "frontier"
-    rules_version: str = "territory_v0"
+class TileEncoding:
+    """관측 타일 값의 단일 정의. 에이전트 값은 팀 내 번호 0..2 순서다."""
+
+    outside: int = 0
+    friendly: int = 1
+    enemy: int = -1
+    friendly_agents: tuple[int, int, int] = (2, 3, 4)
+    enemy_agents: tuple[int, int, int] = (-2, -3, -4)
 
     def __post_init__(self):
-        """생성 직후 맵 크기·시간·시야·초기 배치·규칙 버전을 검증한다.
-        잘못된 설정은 게임 시작 전에 ValueError로 알리며 기본값으로 임의 보정하지 않는다.
-        """
-        for name in ("height", "width", "max_ticks", "respawn_delay", "observation_radius"):
+        for name in ("friendly_agents", "enemy_agents"):
+            codes = getattr(self, name)
+            if not isinstance(codes, (tuple, list)) or len(codes) != 3:
+                raise ValueError(f"{name} must contain three tile values")
+            object.__setattr__(self, name, tuple(codes))
+        if any(type(value) is not int or not -128 <= value <= 127 for value in self.values):
+            raise ValueError("tile values must be int8 integers")
+        if len(set(self.values)) != len(self.values):
+            raise ValueError("tile values must be distinct")
+
+    @property
+    def values(self):
+        return (self.outside, self.friendly, self.enemy, *self.friendly_agents, *self.enemy_agents)
+
+    @property
+    def friendly_tiles(self):
+        return (self.friendly, *self.friendly_agents)
+
+    @property
+    def enemy_tiles(self):
+        return (self.enemy, *self.enemy_agents)
+
+
+@dataclass(frozen=True)
+class GameConfig:
+    height: int = 8
+    width: int = 8
+    max_ticks: int = 128
+    respawn_delay: int = 0
+    initial_placement: str = "frontier"
+
+    def __post_init__(self):
+        """맵·시간·부활 설정을 검증한다. 딜레이 0은 사망 틱 후반 부활이다."""
+        for name in ("height", "width", "max_ticks", "respawn_delay"):
             if type(getattr(self, name)) is not int:
                 raise ValueError(f"{name} must be an integer")
         if self.height < 3 or self.width < 2 or self.width % 2:
             raise ValueError("height >= 3 and even width >= 2 are required")
-        if self.max_ticks < 1 or self.respawn_delay < 0 or self.observation_radius < 1:
-            raise ValueError("max_ticks/radius must be positive; respawn_delay >= 0")
+        if self.max_ticks < 1 or self.respawn_delay < 0:
+            raise ValueError("max_ticks must be positive; respawn_delay >= 0")
         if self.initial_placement not in ("frontier", "random"):
             raise ValueError("initial_placement must be frontier or random")
-        if self.rules_version != "territory_v0":
-            raise ValueError("unsupported rules_version")
 
 
 @dataclass(frozen=True)
 class ExperimentConfig:
-    observation_mode: str = "local"
+    decision_strategy: str = "independent"
     reward_mode: str = "team"
-    team_signal: str = "net"
-    terminal_bonus: float = 1.0
+    team_signal: str = "area"
+    capture_weight: float = 1.0
+    area_weight: float = 1.0
+    win_reward: float = 1.0
+    loss_reward: float = 0.0
+    draw_reward: float = 0.0
+    include_terminal_reward: bool = False
+    gap_weight: float = 1.0
+    reward_signal_mask: tuple[int, int, int] | None = None
+    observation_window_size: int = 15
+    randomize_observation_rotation: bool = False
+    tile_encoding: TileEncoding = field(default_factory=TileEncoding)
 
     def __post_init__(self):
-        """관측/보상 모드와 종료 보상 계수의 유효성을 검증한다.
-        지원하지 않는 모드 또는 음수·무한대·NaN 계수이면 ValueError를 발생시킨다.
-        """
-        if self.observation_mode not in ("local", "aware"):
-            raise ValueError("observation_mode must be local or aware")
+        """전략과 보상을 독립적으로 검증한다. 실행 기본값은 실험 결과나 확정 계수를 뜻하지 않는다."""
+        if type(self.observation_window_size) is not int or self.observation_window_size < 1 or self.observation_window_size % 2 != 1:
+            raise ValueError("observation_window_size must be a positive odd integer")
+        if type(self.randomize_observation_rotation) is not bool:
+            raise ValueError("randomize_observation_rotation must be a bool")
+        if isinstance(self.tile_encoding, dict):
+            object.__setattr__(self, "tile_encoding", TileEncoding(**self.tile_encoding))
+        if not isinstance(self.tile_encoding, TileEncoding):
+            raise ValueError("tile_encoding must be a TileEncoding or its JSON object")
+        if self.decision_strategy not in ("independent", "sequential", "feedback"):
+            raise ValueError("unknown decision_strategy")
         if self.reward_mode not in ("individual", "team"):
             raise ValueError("reward_mode must be individual or team")
-        if self.team_signal not in ("net", "gross", "area", "terminal"):
+        if self.team_signal not in ("area", "gap", "terminal"):
             raise ValueError("unknown team_signal")
-        if not math.isfinite(self.terminal_bonus) or self.terminal_bonus < 0:
-            raise ValueError("terminal_bonus must be finite and nonnegative")
+        for name in ("capture_weight", "area_weight", "gap_weight", "win_reward", "loss_reward", "draw_reward"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+                raise ValueError(f"{name} must be finite")
+        if self.capture_weight <= 0 or self.area_weight < 0 or self.gap_weight < 0 or self.win_reward < 0 or self.loss_reward > 0:
+            raise ValueError("capture_weight > 0; area_weight/gap_weight/win_reward >= 0; loss_reward <= 0")
+        if type(self.include_terminal_reward) is not bool:
+            raise ValueError("include_terminal_reward must be a bool")
+        if self.reward_signal_mask is not None:
+            mask = self.reward_signal_mask
+            if not isinstance(mask, (tuple, list)) or len(mask) != 3 or any(
+                    type(v) not in (int, bool) or v not in (0, 1) for v in mask):
+                raise ValueError("reward_signal_mask must contain three 0/1 values: area, gap, terminal")
+            # JSON 목록이나 호출자가 가진 가변 리스트와 설정이 메모리를 공유하지 않게 한다.
+            object.__setattr__(self, "reward_signal_mask", tuple(int(v) for v in mask))
 
+    @property
+    def resolved_reward_mask(self):
+        """(면적, 상대 팀과의 격차, 종료) 활성 마스크를 반환한다.
+
+        명시 마스크는 team_signal/include_terminal_reward보다 우선한다. 생략 시 두 설정을 변환하여
+        개인 점령 보상에 팀 면적 보상이 자동으로 섞이지 않게 한다.
+        """
+        if self.reward_signal_mask is not None:
+            return self.reward_signal_mask
+        team = self.reward_mode == "team"
+        return (int(team and self.team_signal == "area"),
+                int(team and self.team_signal == "gap"),
+                int(self.include_terminal_reward or (team and self.team_signal == "terminal")))

@@ -1,5 +1,4 @@
 from .models import AGENT_IDS
-from .session import ActionCollector
 from .metrics import EpisodeMetrics
 
 
@@ -12,7 +11,6 @@ class EpisodeManager:
             raise ValueError("provide a controller for each agent")
         self.environment = environment
         self.controllers = dict(controllers)
-        self.collector = ActionCollector(environment)
         self.metrics = EpisodeMetrics()
         self.last_actions = {}
 
@@ -28,16 +26,31 @@ class EpisodeManager:
                 controller.clear()
         return snapshot
 
-    def step(self):
-        """같은 완료 상태에서 여섯 컨트롤러의 행동을 모아 환경을 한 틱 진행한다.
-        수집 중에는 전이하지 않는다. 결과를 지표에 누적하고 마지막 제출 행동을 저장한 뒤 반환한다.
+    def advance(self):
+        """수동 조작용 결정 단계를 진행한다. 순차는 한 명, 나머지는 한 회차를 수집한다.
+
+        되먹임 1차/미완료 순차는 None을 반환하여 입력 변경 기회를 준다.
+        최종 행동이 모두 모인 때만 물리 전이·지표 집계를 한 번 수행한다.
         """
-        self.collector.begin()
-        for aid in AGENT_IDS:
-            session = self.collector.session(aid)
+        env = self.environment
+        if env.decision_round == 0:
+            env.begin_decision()
+        ids = [env.next_decision_agent] if env.decision_strategy == "sequential" else list(AGENT_IDS)
+        for aid in ids:
+            team, number = aid.rsplit("_", 1)
+            session = env.agent_session(team, int(number))
             session.submit_action(self.controllers[aid].act(session.observe()))
-        self.last_actions = self.collector.actions()
-        result = self.environment.step(self.last_actions)
-        self.metrics.update(result)
+        if env.next_decision_agent is not None:
+            return None
+        result = env.finish_decision_round()
+        if result is not None:
+            self.last_actions = dict(env.last_decision[-1]["requested"])
+            self.metrics.update(result, env.snapshot())
         return result
 
+    def step(self):
+        """자동 실행용으로 모든 결정 단계(되먹임 두 회차 포함)를 완료하고 한 틱 진행한다."""
+        result = self.advance()
+        while result is None:
+            result = self.advance()
+        return result

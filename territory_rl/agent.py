@@ -6,18 +6,12 @@ from .models import Action, AgentSnapshot, Position
 class AgentState:
     agent_id: str
     team: int
-    position: Position | None
+    position: Position
     last_attack_tick: int = -2
     respawn_at: int | None = None
     last_action: Action = Action.NOOP
     action_valid: bool = False
-
-    @property
-    def alive(self):
-        """현재 좌표가 존재하면 생존 상태인지 나타내는 True를 반환한다.
-        사망·부활 대기 상태는 position=None으로 표현하며 별도 생존 필드를 중복 저장하지 않는다.
-        """
-        return self.position is not None
+    alive: bool = True
 
     def can_attack(self, next_tick: int):
         """next_tick에 공격을 시도할 수 있는지 반환한다.

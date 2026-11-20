@@ -14,25 +14,97 @@ from .reward import calculate_rewards
 
 
 class TerritoryEnvironment:
-    """Owns game state. All mutations occur in reset/step; no wall-clock logic."""
+    """물리 상태는 reset/step, 결정 버퍼는 명시적 수집 API에서만 갱신한다."""
 
     def __init__(self, config=None, experiment=None):
         """게임/실험 설정과 에피소드 식별자를 준비한다. 실제 맵·에이전트는 reset에서 생성한다."""
         self.config = config or GameConfig()
-        self.experiment = experiment or ExperimentConfig()
+        self._experiment = experiment or ExperimentConfig()
+        if self.experiment.observation_window_size < 2 * max(self.config.height, self.config.width) - 1:
+            raise ValueError("observation_window_size must fit the whole map from every agent position")
+        from .session import ActionCollector
+        self._collector = ActionCollector(self)
+        self.last_decision = []
         self.episode_id = 0
         self._initialized = False
+        self._observation_rotation = 0
+
+    @property
+    def observation_rotation(self):
+        """환경 전체에 적용되는 시계 방향 90도 회전 횟수(0..3)."""
+        return self._observation_rotation
+
+    def action_to_world(self, action):
+        """에이전트가 제출한 관측 방향 행동을 실제 맵 방향으로 보정한다."""
+        from .observation import rotate_action
+        self._require_reset()
+        return rotate_action(action, -self.observation_rotation)
+
+    def action_to_observation(self, action):
+        """실제 맵 방향 행동을 공통 관측 방향으로 변환한다."""
+        from .observation import rotate_action
+        self._require_reset()
+        return rotate_action(action, self.observation_rotation)
+
+    @property
+    def experiment(self):
+        """에피소드 중 교체할 수 없는 실험 설정을 반환한다."""
+        return self._experiment
+
+    @property
+    def decision_strategy(self):
+        """환경에 저장된 현재 결정 전략을 반환한다."""
+        return self.experiment.decision_strategy
+
+    @property
+    def decision_round(self):
+        """현재 수집 회차를 반환한다. 수집 전/전이 후에는 0이다."""
+        return self._collector.round
+
+    @property
+    def next_decision_agent(self):
+        """수집 중 다음 제출자를 반환한다. 비활성 상태에서는 None이다."""
+        return self._collector.next_agent if self._collector.active else None
+
+    def begin_decision(self):
+        """환경 소유 수집기에서 새 틱의 결정을 시작한다."""
+        self._collector.begin()
+
+    def agent_session(self, team_id, agent_number):
+        """팀·번호를 검증하고 현재 회차 세션을 발급한다."""
+        return self._collector.session(self._agent_id(team_id, agent_number))
+
+    def finish_decision_round(self):
+        """되먹임 1차는 전이 없이 마감하고, 최종 회차는 한 틱을 실행한다."""
+        finished = self._collector.finish_round()
+        if finished is None:
+            return None
+        requested, trace = finished
+        self._collector.clear()
+        result = self.step(requested)
+        self.last_decision = trace
+        return result
+
+    @staticmethod
+    def _agent_id(team_id, agent_number):
+        """공개 API의 red/blue 및 팀 내 정수 번호 0..2를 내부 ID로 변환한다."""
+        if team_id not in ("red", "blue") or isinstance(agent_number, bool) or not isinstance(agent_number, Integral) or not 0 <= agent_number < 3:
+            raise ValueError("expected team red/blue and agent_number 0..2")
+        return f"{team_id}_{int(agent_number)}"
 
     def reset(self, seed=None, options=None):
         """새 에피소드 상태와 환경 전용 RNG를 만들고 초기 StateSnapshot을 반환한다.
 
         seed가 같으면 초기 배치와 이후 동일 행동열에 따른 무작위 부활을 재현할 수 있다.
-        options에는 테스트용 owner, agents, tick을 지정할 수 있으며 다른 키는 거부한다.
+        options에는 owner, agents, tick, decision_strategy/reward_signal_mask 및
+        관측 회전 재현용 observation_rotation(0..3)을 지정할 수 있다.
         사용자 상태는 검증·복사한 뒤 반영하고 episode_id를 늘려 기존 세션을 무효화한다.
         """
         options = dict(options or {})
-        if set(options) - {"owner", "agents", "tick"}:
+        if set(options) - {"owner", "agents", "tick", "decision_strategy", "reward_signal_mask", "observation_rotation"}:
             raise ValueError("unsupported scenario option")
+        experiment = replace(self.experiment, decision_strategy=options.get("decision_strategy", self.decision_strategy),
+                             reward_signal_mask=options.get("reward_signal_mask", self.experiment.reward_signal_mask))
         cfg = self.config
         rng = np.random.default_rng(seed)
         tile_map = TileMap(cfg.height, cfg.width, options.get("owner"))
@@ -56,6 +128,22 @@ class TerritoryEnvironment:
             right = [(r, cfg.width - 1 - c) for r, c in left]
             agents = {aid: AgentState(aid, i // 3, (left + right)[i]) for i, aid in enumerate(AGENT_IDS)}
         self._validate_state(tile_map, agents, tick)
+        if any(area == 0 and not any(a.alive and a.team == team for a in agents.values())
+               for team, area in enumerate(tile_map.areas())):
+            raise ValueError("scenario starts with an eliminated team")
+        # 관측용 추첨은 배치/부활 RNG를 소비하지 않는다.
+        rotation_rng = np.random.default_rng(np.random.SeedSequence(seed, spawn_key=(1,)))
+        rotation = options.get("observation_rotation")
+        if rotation is None:
+            rotation = int(rotation_rng.integers(4)) if experiment.randomize_observation_rotation else 0
+        if type(rotation) is not int or not 0 <= rotation < 4:
+            raise ValueError("observation_rotation must be an integer in [0,3]")
+        if rotation and not experiment.randomize_observation_rotation:
+            raise ValueError("enable randomize_observation_rotation before specifying a rotation")
+        self._experiment = experiment
+        self._observation_rotation = rotation
+        self._collector.clear()
+        self.last_decision = []
         self._map, self._agents, self._rng = tile_map, agents, rng
         self.tick, self.terminated = tick, False
         self.episode_id += 1
@@ -80,16 +168,21 @@ class TerritoryEnvironment:
             if not isinstance(a.last_attack_tick, Integral) or a.last_attack_tick > tick:
                 raise ValueError("last attack cannot be in the future")
             a.last_action = Action.parse(a.last_action)
+            if type(a.alive) is not bool:
+                raise ValueError("alive must be a bool")
+            p = a.position
+            if not isinstance(p, (tuple, list)) or len(p) != 2 or any(
+                    not isinstance(x, Integral) or isinstance(x, bool) for x in p):
+                raise ValueError("positions must contain two integers, including dead agents")
+            p = tuple(map(int, p))
+            if not tile_map.contains(p):
+                raise ValueError("positions must be inside the map")
+            a.position = p
             if a.alive:
-                p = a.position
-                if len(p) != 2 or any(not isinstance(x, Integral) or isinstance(x, bool) for x in p):
-                    raise ValueError("positions must contain two integers")
-                p = tuple(map(int, p))
-                if not tile_map.contains(p) or tile_map.owner[p] != a.team or p in seen:
+                if tile_map.owner[p] != a.team or p in seen:
                     raise ValueError("living agents require unique friendly positions")
                 if a.respawn_at is not None:
                     raise ValueError("living agents cannot have a pending respawn")
-                a.position = p
                 seen.add(p)
             elif not isinstance(a.respawn_at, Integral) or a.respawn_at < 0:
                 raise ValueError("dead agents require a nonnegative respawn_at")
@@ -113,7 +206,7 @@ class TerritoryEnvironment:
     def action_mask(self, aid):
         """aid가 다음 틱에 제출할 수 있는 행동을 길이 9의 int8 배열로 반환한다.
 
-        정지(0)는 항상 허용하며 사망 또는 경기 종료 상태에서는 정지만 남긴다.
+        정지 코드 1(마스크 인덱스 0)은 항상 허용하며 사망 또는 경기 종료 상태에서는 정지만 남긴다.
         경계와 본인 공격 cooldown만 검사한다. 점유 칸·적 타일도 같은 틱에
         비워지거나 아군이 점령할 수 있으므로 그 이유만으로 이동을 차단하지 않는다.
         """
@@ -124,18 +217,20 @@ class TerritoryEnvironment:
         if a.alive and not self.terminated:
             for action in list(Action)[1:]:
                 if self._map.contains(action.target(a.position)) and (not action.is_attack or a.can_attack(self.tick + 1)):
-                    mask[action] = 1
+                    mask[action.index] = 1
         return mask
 
-    def observe(self, aid):
-        """aid에게 허용된 local/aware 관측 사전을 새로 만들어 반환한다.
-        전역 스냅샷은 관측 생성 내부에서만 사용하며 호출 자체는 틱이나 RNG를 바꾸지 않는다.
+    def observe(self, team_id, agent_number):
+        """팀·번호에 맞춘 tilemap/team_actions/auxiliary를 반환한다.
+        타일 값은 tile_encoding, 방향은 공통 회전을 따른다. 조회는 상태·난수를 진행하지 않는다.
         """
         from .observation import build_observation
-        return build_observation(self.snapshot(), aid, self.config, self.experiment, self.action_mask(aid))
+        aid = self._agent_id(team_id, agent_number)
+        return build_observation(self.snapshot(), aid, self.experiment, self.decision_strategy,
+                                 self.action_mask(aid), self._collector.context(aid), self.observation_rotation)
 
     def step(self, actions):
-        """ID별 행동 사전을 받아 정확히 한 틱을 진행하고 StepResult를 반환한다.
+        """실제 맵 방향의 ID별 행동 사전을 받아 한 틱을 진행한다.
 
         미제출은 정지로 채운다. 잘못된 ID·행동값은 상태 변경 전에 오류로 알리고,
         범위 안이지만 mask로 금지된 행동은 정지로 바꿔 거부 이벤트를 남긴다.
@@ -145,6 +240,8 @@ class TerritoryEnvironment:
         self._require_reset()
         if self.terminated:
             raise RuntimeError("episode is over; call reset")
+        if self._collector.active:
+            raise RuntimeError("finish decision rounds before stepping")
         if set(actions) - set(AGENT_IDS):
             raise ValueError("unknown agent ID")
         # Parse ALL actions before mutating anything, including RNG.
@@ -153,9 +250,9 @@ class TerritoryEnvironment:
         events = []
         for aid in AGENT_IDS:
             action = requested[aid]
-            applied[aid] = action if self.action_mask(aid)[action] else Action.NOOP
+            applied[aid] = action if self.action_mask(aid)[action.index] else Action.NOOP
             if applied[aid] != action:
-                events.append(Event("rejected", aid, reason="action_mask", requested=int(action), applied=0))
+                events.append(Event("rejected", aid, reason="action_mask", requested=int(action), applied=int(Action.NOOP)))
         tick = self.tick + 1
         before = self._map.areas()
         attack_events = resolve_attacks(self._map.owner, self._agents, applied)
@@ -170,9 +267,9 @@ class TerritoryEnvironment:
                 self._map.owner[event.position] = event.new_owner
 
         def kill_exposed(phase):
-            """현재 타일이 적 소유인 생존자를 사망 처리하고 부활 예정 틱을 기록한다.
+            """적 타일의 생존자를 사망 처리하며 position을 보존하고 부활 예정 틱을 기록한다.
             phase는 attack 또는 movement로, 사건의 사망 원인 단계를 구별한다.
-            공격 직후 사망이면 예약된 이동도 취소하며 위치를 None으로 바꿔 즉시 점유를 해제한다.
+            공격 직후 사망이면 예약된 이동도 취소하며 alive=False로 즉시 점유를 해제한다.
             """
             for aid in AGENT_IDS:
                 a = self._agents[aid]
@@ -181,7 +278,7 @@ class TerritoryEnvironment:
                                         due_tick=tick + self.config.respawn_delay))
                     if phase == "attack" and applied[aid].is_move:
                         events.append(Event("move", aid, applied[aid].target(a.position), a.position, "killed_before_move"))
-                    a.position = None
+                    a.alive = False
                     a.respawn_at = tick + self.config.respawn_delay
 
         kill_exposed("attack")
@@ -192,12 +289,19 @@ class TerritoryEnvironment:
             self._agents[aid].position = position
         kill_exposed("movement")
         after = self._map.areas()
-        terminated = tick == self.config.max_ticks
+        eliminated = tuple(("red", "blue")[team] for team, area in enumerate(after)
+                           if area == 0 and not any(a.alive and a.team == team for a in self._agents.values()))
+        reasons = tuple(reason for reason, condition in (("time_limit", tick >= self.config.max_ticks),
+                                                        ("team_eliminated", bool(eliminated))) if condition)
+        terminated = bool(reasons)
         if not terminated:
             events.extend(respawn_due_agents(self._agents, self._map.owner, tick, self._rng))
-        rewards, credits = calculate_rewards(self.experiment, before, after, events, terminated)
+        rewards, credits, components = calculate_rewards(self.experiment, after, events, terminated)
         self.tick, self.terminated = tick, terminated
+        self._collector.clear()
+        self.last_decision = []
         self._validate_state(self._map, self._agents, tick)
         return StepResult(tick, tuple(events), before, after, MappingProxyType(rewards),
-                          MappingProxyType(credits), terminated)
+                          MappingProxyType(credits), MappingProxyType({a: MappingProxyType(v) for a, v in components.items()}),
+                          terminated, termination_reasons=reasons, eliminated_teams=eliminated)
 
