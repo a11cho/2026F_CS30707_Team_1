@@ -130,7 +130,7 @@ def test_cli_mask_overrides_team_signal_and_roundtrips(tmp_path, capsys):
           "--team-signal", "terminal", "--include-terminal-reward", "--log", str(path)])
     records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     assert records[0]["experiment"]["reward_signal_mask"] == [0, 1, 0]
-    assert records[0].keys() == {"type", "seed", "game", "experiment"}
+    assert records[0].keys() == {"type", "seed", "game", "experiment", "observation_rotation"}
     for record in records[1:]:
         for parts in record["reward_components"].values():
             assert parts["area"] == parts["terminal"] == 0
@@ -144,7 +144,8 @@ def test_replay_verifies_capture_rewards_and_credits(tmp_path, capsys):
     experiment = ExperimentConfig(reward_mode="individual", capture_weight=4)
     env = TerritoryEnvironment(game, experiment)
     env.reset(seed=7)
-    records = [{"type": "reset", "seed": 7, "game": asdict(game), "experiment": asdict(experiment)}]
+    records = [{"type": "reset", "seed": 7, "game": asdict(game), "experiment": asdict(experiment),
+                "observation_rotation": env.observation_rotation}]
     for actions in ({"red_1": Action.ATTACK_RIGHT}, {"red_1": Action.RIGHT},
                     {"red_0": Action.ATTACK_RIGHT, "red_1": Action.ATTACK_UP}):
         record = env.step(actions).to_dict()

@@ -1,6 +1,6 @@
 # Territory Control 환경 실행
 
-3v3 인접 타일 공격 환경이다. 현재 구현 버전은 `territory_v1`이며 학습기 없이 환경·키보드·scripted 에이전트를 실행한다.
+3v3 인접 타일 공격 환경이다. 학습기 없이 환경·키보드·scripted 에이전트를 실행한다.
 
 ## 설치 및 실행
 
@@ -22,7 +22,7 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-`headless`와 pytest는 환경 기능을 실행하며 모델 학습을 하지 않는다. 로그에는 설정, 규칙 버전, 회차별 원요청/정규화 행동, 최종 행동, 점령 기여, 보상 항, 종료 이유가 포함된다. replay는 회차 수집과 최종 전이를 모두 검증한다.
+`headless`와 pytest는 환경 기능을 실행하며 모델 학습을 하지 않는다. 로그에는 설정, 회차별 원요청/정규화 행동, 최종 행동, 점령 기여, 보상 항, 종료 이유가 포함된다. replay는 회차 수집과 최종 전이를 모두 검증한다.
 
 ## 기본 설정과 보상
 
@@ -79,31 +79,63 @@ env.reset(seed=8, options={"reward_signal_mask": [0, 0, 1]})
 
 ## 관측 및 행동 API
 
-```python
-from territory_rl import Action, ExperimentConfig, TerritoryEnvironment
+관측은 `tilemap`, `team_actions`, `auxiliary` 세 항목을 반환한다.
 
-env = TerritoryEnvironment(experiment=ExperimentConfig(decision_strategy="feedback"))
+| 항목 | 형식과 의미 |
+| --- | --- |
+| `tilemap` | 기본 `(15, 15)` int8 격자. 본인의 `position`을 `(7, 7)`에 대응시켜 전체 맵을 그린다. |
+| `team_actions` | `(3,)` int8. 자신 포함 아군 0..2의 공개된 이번 틱 행동이다. |
+| `auxiliary` | 소속·생존·공격 가능·부활 대기, 본인 번호, 면적, 시간, 결정 전략·회차·행동 출처, 행동 공개 마스크·one-hot, 행동 마스크를 담는 사전이다. |
+
+기본 타일 값은 맵 밖 0, 빈 아군/적군 영역 +1/-1, 아군 0..2는 +2/+3/+4, 적군 0..2는 -2/-3/-4다. 타일 값은 `config.py`의 `TileEncoding`에 모았으며 실행별로도 변경할 수 있다. 모든 값은 서로 다른 int8 정수다. 관측 생성과 scripted 봇은 이 설정을 함께 사용한다.
+
+```python
+from territory_rl import Action, ExperimentConfig, TerritoryEnvironment, TileEncoding
+
+encoding = TileEncoding(
+    outside=0,
+    friendly=1,
+    enemy=-1,
+    friendly_agents=(5, 6, 7),
+    enemy_agents=(-5, -6, -7),
+)
+experiment = ExperimentConfig(decision_strategy="feedback", tile_encoding=encoding)
+env = TerritoryEnvironment(experiment=experiment)
 env.reset(seed=7)
-obs = env.observe("blue", 2)  # 팀 이름과 팀 내 번호 0..2
-# obs["owner"]: 아군=1, 적군=-1; 좌표와 방향은 회전/반전하지 않는다.
-# 에이전트 배열: 아군_0..2, 적군_0..2; self_index는 요청한 번호다.
+obs = env.observe("blue", 2)
+assert obs["tilemap"][7, 7] == encoding.friendly_agents[2]
+mask = obs["auxiliary"]["action_mask"]
 
 env.begin_decision()
-session = env.agent_session("blue", 2)
-session.submit_action(Action.NOOP)
-assert env.finish_decision_round() is None  # 누락=정지, 1차 제안을 동결
-second = env.agent_session("blue", 2)       # 회차가 바뀌면 세션을 다시 받는다.
-proposals = second.observe()["team_action_codes"]
+env.agent_session("blue", 2).submit_action(Action.NOOP)
+assert env.finish_decision_round() is None
+second = env.agent_session("blue", 2)
+proposals = second.observe()["team_actions"]
 second.submit_action(Action.NOOP)
-result = env.finish_decision_round()        # 2차 최종 행동만 실행
+result = env.finish_decision_round()
 ```
 
-`owner`는 ±1이다. `agent_teams`는 아군 1/적군 0의 별도 소속 표시이고 `agent_alive`는 생존 마스크다. `team_action_codes`는 자신 포함 아군 3명 번호순이다. 미관측 0, 정지 1, 이동 2~5, 공격 6~9다. 미관측 one-hot은 전부 0이며 `team_actions_known`으로 확정 NOOP과 구분한다. 되먹임 2차는 최종 제출이 아닌 동결된 1차 제안을 관측한다. 환경이 저장한 전략과 회차에 맞게 공개하므로 관측 호출에 외부 행동 버퍼를 전달하지 않는다.
+`team_actions`는 미공개 0, 정지 1, 이동 2..5, 공격 6..9다. `independent`는 본인 제출만, `sequential`은 앞서 확정한 아군 행동을 공개한다. `feedback` 2차는 동결된 아군 3명의 1차 제안을 공개한다. 공개 여부와 원-핫 표현은 `auxiliary`에 보존한다. 에이전트별 보조 배열은 아군 0..2 다음 적군 0..2 순서다.
 
-`Action.index`는 길이 9 마스크의 0 기반 인덱스다. 규칙 엔진과 세션은 실행 코드 1..9를 받고 0을 거부한다. **표준 `TerritoryParallelEnv.step`만 `Discrete(9)` 인덱스 0..8을 받아 변환한다.** `Action.from_index`와 `.index`로 명시적으로 변환한다.
+사망해도 `position`은 사망 직전 좌표를 유지하며 `alive=False`로 점유를 해제한다. 그 좌표를 관측 중심으로 사용하고 사망자는 타일맵에 그리지 않는다. 부활하면 새 좌표가 중심이 된다. 사망 초기 시나리오에도 맵 안의 `position`, `alive=False`, `respawn_at`을 지정한다.
 
-Parallel adapter의 일괄 step은 개별 전략용이다. 순차·되먹임은 adapter의 `begin_decision`, `agent_session`, `finish_decision_round`로 수집한다. 수집을 우회한 step은 거부한다. 코어의 직접 `step(actions)`는 최종 행동 집합을 재현하는 규칙 실행용이며 결정 전략을 자동 실행하지 않는다. 자동 컨트롤러 연결에는 `EpisodeManager.step()`, 수동 단계 진행에는 `EpisodeManager.advance()`를 사용한다.
+### 공통 관측 회전
 
-## 버전 변경
+`randomize_observation_rotation=False`가 기본이다. 활성화하면 reset마다 환경 공통 각도 하나를 0/90/180/270도 중 추첨하고, 모든 에이전트가 에피소드 동안 동일한 시계 방향 회전을 사용한다. 배치·부활 RNG와 관측 회전 RNG는 분리한다. 테스트·재생에서는 활성 설정과 함께 `reset(options={"observation_rotation": 1})`처럼 90도 단위 값을 지정할 수 있다.
 
-v0의 0=정지, 지역 격자 local/aware 관측 및 `observation_radius`/`observation_mode`/`terminal_bonus` 설정은 새 API로 대체했다. 이전 로그를 새 행동 코드로 조용히 재생하지 않고 버전 오류로 거부한다. 과거 설정은 새 전략·보상 설정으로 명시적으로 이전해야 한다. 상세 규칙은 [env.md](env.md), 구현 항목과 검증 범위는 [implementation_plan.md](implementation_plan.md)를 참고한다.
+```powershell
+.\.venv\Scripts\python.exe -m territory_rl --mode headless --randomize-observation-rotation --log runs/rotated.jsonl
+.\play.ps1 -ManualAll -RandomizeObservationRotation
+```
+
+타일맵, 공개 행동, `auxiliary.action_mask`, `session.available_actions()`는 모두 관측 방향이다. **세션 제출과 `TerritoryParallelEnv.step()`은 관측 방향 행동을 받아 실제 맵 방향으로 역변환한다.** 예를 들어 시계 방향 90도 관측의 오른쪽 이동은 실제 맵 위쪽 이동이다. 키보드 디버그 맵도 같은 각도로 표시한다.
+
+세션은 실행 코드 1..9를 받으며, 표준 Parallel step은 `Discrete(9)` 인덱스 0..8을 받는다. `Action.from_index`와 `.index`로 변환한다. `TerritoryEnvironment.step()` 및 `action_mask()`는 규칙 실행용 실제 맵 방향 API다. 수동 변환에는 `action_to_world()`와 `action_to_observation()`을 사용한다.
+
+Parallel 일괄 step은 independent용이며 sequential/feedback은 `begin_decision`, `agent_session`, `finish_decision_round`로 수집한다. 자동 컨트롤러는 `EpisodeManager.step()`, 수동 단계 진행은 `EpisodeManager.advance()`를 사용한다. 사용자 정의 타일 값을 쓰는 봇에는 `FrontierController(..., tile_encoding=experiment.tile_encoding)`을 전달한다.
+
+윈도우는 `observation_window_size=15`가 기본이다. 홀수이며 `2 * max(height, width) - 1` 이상이어야 한다. 더 큰 맵은 `--observation-window-size` 또는 ExperimentConfig로 충분한 크기를 지정한다.
+
+로그의 reset에는 회전 횟수와 타일 설정을 기록한다. 회차별 `observation_requested`는 관측 방향, `requested`와 `applied` 및 최종 `actions`는 실제 맵 방향이다. 보상은 현재 공식으로 검증한다.
+
+상세 규칙은 [env.md](env.md), 구현 항목과 검증 범위는 [implementation_plan.md](implementation_plan.md)를 참고한다.

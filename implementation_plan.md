@@ -1,6 +1,8 @@
 # Territory Control 환경 구현 계획
 
-2026-11-15 개정. [env.md](env.md)의 회의 결정과 API 설계안을 현재 동작하는 환경에 반영하기 위한 후속 계획이다. **구현 상태: `territory_v1` 코드와 환경 기능 검사에 반영했다.** 실행 기본값·API 이전·키보드 사용법은 [README.md](README.md)에 기록한다. 아래 표의 현재 구현 열은 변경 전 v0를 뜻한다. 기존 환경 비교의 근거는 [environment_design_review.md](environment_design_review.md)에 보존한다.
+2026-11-20 자기 중심 타일맵 관측을 구현했다. 현재 관측 계약은 아래 11절과 env.md 6절을 따른다. 1~10절은 이전 구현의 계획과 기록이다.
+
+2026-11-15 개정. [env.md](env.md)의 회의 결정과 API 설계안을 현재 동작하는 환경에 반영하기 위한 후속 계획이다. **구현 상태는 환경 코드와 기능 검사에 반영했다.** 실행 기본값·API 이전·키보드 사용법은 [README.md](README.md)에 기록한다. 아래 표의 현재 구현 열은 당시 변경 전 상태를 뜻한다. 기존 환경 비교의 근거는 [environment_design_review.md](environment_design_review.md)에 보존한다.
 
 ## 1. 변경 범위와 현재 구현의 차이
 
@@ -61,7 +63,7 @@ terminated = time_limit or bool(eliminated_teams)
 
 9개 선택지 인덱스 0..8을 받는 adapter에는 양방향 변환 함수를 둔다. `Discrete(9)`의 0은 정지 선택이고, 관측 코드 0은 미관측이라는 차이를 문서·타입·함수명으로 드러낸다. 엔진과 `submit_action`에 0을 직접 넣으면 오류다. `action_mask`는 길이 9로 유지한다.
 
-키보드 매핑, 정지 기본값, scripted controller, 사건의 requested/applied 코드, 로그와 replay도 함께 이전한다. 기존 로그는 버전별 변환 없이 새 숫자로 해석하지 않는다. 규칙/관측 프로토콜 버전을 갱신하고 지원하지 않는 버전은 명확하게 거부한다.
+키보드 매핑, 정지 기본값, scripted controller, 사건의 requested/applied 코드, 로그와 replay도 함께 이전한다. 로그와 replay는 현재 행동 코드와 관측 형식을 사용한다.
 
 ### 4.2. 관측 생성 계약
 
@@ -135,10 +137,10 @@ EpisodeManager → environment.begin_decision() → 내부 ActionCollector
 | 3 | `models.py`, `controller.py`, `keyboard.py` | 실행 코드 이전과 명시적 선택 인덱스 변환 |
 | 4 | `session.py`, `observation.py`, `environment.py` | 팀·번호 API, 아군=1 변환, 환경 소유 전략/회차/행동 버퍼 |
 | 5 | `manager.py`, `parallel_env.py` | 개별/순차/되먹임 연결, 새 spaces, 6명 종료 lifecycle |
-| 6 | `keyboard_demo.py`, `visualization.py`, CLI/replay | 조작 연결, 코드/버전 표시, 조기 종료와 재시작 |
+| 6 | `keyboard_demo.py`, `visualization.py`, CLI/replay | 조작 연결, 행동 표시, 조기 종료와 재시작 |
 | 7 | `tests/` | 아래 환경 기능 검증 및 필요한 기존 기대값 수정 |
 
-`observation_radius`는 새 전체 맵 관측에 사용하지 않는다. 기존 버전 호환 목적으로 보존할지 폐기할지는 API 이전 때 명시하며, 새 관측의 크기를 바꾸는 설정처럼 노출하지 않는다. 전체 맵으로 바뀌므로 기존 local grid 전용 scripted controller도 좌표 변환과 탐색 범위를 조정해야 한다.
+`observation_radius`는 제거하고 전체 맵을 포함하는 observation_window_size를 사용한다. 전체 맵으로 바뀌므로 기존 local grid 전용 scripted controller도 좌표 변환과 탐색 범위를 조정해야 한다.
 
 ## 7. 검증 계획: 환경 동작만
 
@@ -166,7 +168,7 @@ EpisodeManager → environment.begin_decision() → 내부 ActionCollector
 | 전이 일관성 | 동일 확정 행동의 일괄/순차 수집 결과 일치; 실제 행동 선택의 순서 독립성은 요구하지 않음 |
 | 수동 조작 | 키보드 이동·공격·정지, 선택 에이전트 전환, 같은 틱 후반 부활, 조기 종료, 재시작 |
 | 되먹임 조작 | 현재 회차·1차 제안 표시, 2차 재선택 연결, 1차만으로 전이·보상·시간 진행 없음 |
-| 로그 | 새 코드 버전과 종료 이유 기록, 기존 코드 버전은 명시 변환 또는 거부 |
+| 로그 | 행동 코드·좌표계와 종료 이유 기록 및 전이 재생 검증 |
 
 기존의 “영역이 없어도 T까지 계속 진행”, “수집 중에는 제출한 아군 행동도 보이지 않음”, “0=정지”, 지역 격자 관측을 전제로 하는 검증은 새 계약에 맞춰 교체한다. 동시 공격·이동 충돌·재현성 등 변경하지 않은 규칙 검증은 유지한다.
 
@@ -197,3 +199,13 @@ EpisodeManager → environment.begin_decision() → 내부 ActionCollector
 환경 및 Parallel adapter의 reset에서 새 마스크를 적용할 수 있다. CLI는 `--reward-mask 0 1 0`, 실행 스크립트는 `-RewardMask 0,1,0`을 받으며 키보드 화면과 로그에서도 확인한다. `reward_components`는 `capture`, `area`, `gap`, `terminal`을 기록한다. replay는 현재 공식으로 보상을 다시 계산해 로그와 비교한다.
 
 검증은 8개 마스크, 양/음/동률 격차, 유지된 격차, 조기 종료, 개인 항 독립성, 불변 설정과 reset, 잘못된 입력, CLI/로그 재생 및 마스크에 따른 물리 전이 불변성에 한정한다. 학습은 실행하지 않는다. 고정 전체 면적에서 격차와 면적의 수학적 관계 및 가변 에피소드 길이의 차이는 env.md 8.3절에 명시한다.
+
+## 11. 2026-11-20 자기 중심 타일맵 구현
+
+- TileEncoding에 outside/friendly/enemy/friendly_agents/enemy_agents를 모으고 ExperimentConfig에서 실행별로 주입한다. distinct int8 검증, JSON 설정 복원, 관측 공간과 봇의 코드 집합 해석에 같은 값을 사용한다.
+- 관측은 tilemap/team_actions/auxiliary를 반환한다. 기본 15×15 중심은 (7,7)이며 전체 맵 포함 조건을 검사한다. 생존자만 그리며 보조 정보는 별도 사전에 보존한다.
+- position을 사망 후에도 보존하고 alive를 독립 상태로 둔다. 충돌·공격·부활·렌더링은 alive를 기준으로 처리한다. 사망 초기 시나리오는 유효한 좌표·alive=False·respawn_at을 명시한다.
+- 기본 비활성 공통 회전은 reset에서 전원에게 같은 0..3 회전 횟수를 정한다. 관측 전용 RNG를 사용하고 에피소드 내 고정한다.
+- 세션과 Parallel step에서 관측 행동을 실제 맵 행동으로 보정한다. 공개 행동·one-hot·mask는 관측 방향이며 core.step은 실제 맵 방향을 받는다.
+- 키보드 디버그 맵도 공통 각도로 표시하고 CLI/PowerShell에 회전·윈도우 옵션을 연결한다. reset에는 각도·타일 설정, 회차에는 observation_requested/requested/applied를 기록한다.
+- 검증은 모서리·내부 위치의 전체 맵 보존, 임의 타일 값과 공간 계약, 네 회전의 행동 목표, 세 전략의 공개 행동·전이 일치, 사망 좌표·점유 해제·부활, RNG와 reset 원자성, 현재 형식의 로그 재생을 포함한다.

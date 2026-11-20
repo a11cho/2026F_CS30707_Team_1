@@ -25,7 +25,7 @@ def test_spaces_lifecycle_and_invariants(strategy, reward_mode):
     for tick in range(1, 65):
         for aid, o in obs.items():
             assert env.observation_space(aid).contains(o)
-            assert not o["team_actions_known"].any()
+            assert not o["auxiliary"]["team_actions_known"].any()
         actions = {a: int(rng.integers(9)) for a in env.agents}
         if strategy == "independent":
             obs, rewards, terms, truncs, _ = env.step(actions)
@@ -54,10 +54,12 @@ def test_spaces_lifecycle_and_invariants(strategy, reward_mode):
     assert not env.agents
 
 
-def test_official_parallel_contract_and_seed_reproducibility():
+@pytest.mark.parametrize("rotation_enabled", [False, True])
+def test_official_parallel_contract_and_seed_reproducibility(rotation_enabled):
     """PettingZoo 공식 검사로 Parallel API 반환 계약과 시드 재현성을 검증한다. 학습 테스트가 아니다."""
     from pettingzoo.test import parallel_api_test, parallel_seed_test
-    factory = lambda: TerritoryParallelEnv(GameConfig(height=6, width=8, max_ticks=40))
+    factory = lambda: TerritoryParallelEnv(GameConfig(height=6, width=8, max_ticks=40),
+                                         ExperimentConfig(randomize_observation_rotation=rotation_enabled))
     parallel_api_test(factory(), num_cycles=80)
     parallel_seed_test(factory, num_cycles=80)
 
@@ -89,22 +91,28 @@ def test_snapshot_and_observation_do_not_alias_internal_state():
     s.owner.flags.writeable = True
     s.owner[:] = 1
     obs = env.observe("red", 0)
-    obs["owner"][:] = 9
-    obs["action_mask"][:] = 0
+    obs["tilemap"][:] = 99
+    obs["auxiliary"]["action_mask"][:] = 0
     assert env.snapshot().owner[0, 0] == 0
-    assert env.observe("red", 0)["owner"].max() <= 1
+    assert 99 not in env.observe("red", 0)["tilemap"]
     assert env.action_mask("red_0")[0] == 1
 
 
 def test_full_map_relative_team_and_positions():
-    """양 팀이 동일 물리 맵을 반대 부호로 보고 모든 위치를 아군 우선 순서로 받는다."""
+    """각 관측은 자기 중심에 본인 번호를 그리고 전체 맵 면적을 보존한다."""
     env = scenario()
     red, blue = env.observe("red", 0), env.observe("blue", 2)
-    np.testing.assert_array_equal(red["owner"], -blue["owner"])
-    assert set(np.unique(red["owner"])) == {-1, 1}
-    np.testing.assert_array_equal(red["agent_positions"][:3], blue["agent_positions"][3:])
-    np.testing.assert_array_equal(red["areas"], blue["areas"][::-1])
-    assert blue["self_index"] == 2 and blue["self_team"] == 1
+    encoding = env.experiment.tile_encoding
+    assert set(red) == set(blue) == {"tilemap", "team_actions", "auxiliary"}
+    for observation, number in ((red, 0), (blue, 2)):
+        tilemap = observation["tilemap"]
+        assert tilemap.shape == (15, 15) and tilemap.dtype == np.int8
+        assert tilemap[7, 7] == encoding.friendly_agents[number]
+        assert np.count_nonzero(tilemap != encoding.outside) == 36
+        assert np.count_nonzero(np.isin(tilemap, encoding.friendly_tiles)) == 18
+        assert np.count_nonzero(np.isin(tilemap, encoding.enemy_tiles)) == 18
+    np.testing.assert_array_equal(red["auxiliary"]["areas"], blue["auxiliary"]["areas"][::-1])
+    assert blue["auxiliary"]["self_index"] == 2 and blue["auxiliary"]["self_team"] == 1
 
 
 def test_dead_observation_keeps_full_map_and_unknown_current_actions():
@@ -112,11 +120,13 @@ def test_dead_observation_keeps_full_map_and_unknown_current_actions():
     env = scenario({"red_0": (2, 2)})
     env.step({"red_0": Action.RIGHT, "red_1": Action.ATTACK_RIGHT})
     dead = env.observe("red", 0)
-    assert not dead["agent_alive"][0]
-    assert dead["owner"].shape == (6, 6)
-    assert tuple(dead["agent_positions"][0]) == (-1, -1)
-    assert not dead["team_action_codes"].any()
-    np.testing.assert_array_equal(dead["action_mask"], [1, 0, 0, 0, 0, 0, 0, 0, 0])
+    assert not dead["auxiliary"]["agent_alive"][0]
+    assert dead["tilemap"].shape == (15, 15)
+    assert env.snapshot().agents[0].position == (2, 3)
+    assert env.experiment.tile_encoding.friendly_agents[0] not in dead["tilemap"]
+    assert dead["tilemap"][7, 7] == env.experiment.tile_encoding.enemy
+    assert not dead["team_actions"].any()
+    np.testing.assert_array_equal(dead["auxiliary"]["action_mask"], [1, 0, 0, 0, 0, 0, 0, 0, 0])
 
 
 def test_sessions_independent_duplicate_and_stale_tokens():
@@ -127,7 +137,12 @@ def test_sessions_independent_duplicate_and_stale_tokens():
     before = teammate.observe()
     red.submit_action(Action.ATTACK_RIGHT)
     for key, value in before.items():
-        np.testing.assert_array_equal(value, teammate.observe()[key])
+        current = teammate.observe()[key]
+        if isinstance(value, dict):
+            for field in value:
+                np.testing.assert_array_equal(value[field], current[field])
+        else:
+            np.testing.assert_array_equal(value, current)
     with pytest.raises(ValueError):
         red.submit_action(Action.NOOP)
     env.finish_decision_round()
@@ -190,7 +205,7 @@ def test_scripted_controllers_only_use_observations_and_valid_actions(style):
     for _ in range(40):
         obs = {a: env.observe(a.rsplit("_", 1)[0], int(a[-1])) for a in AGENT_IDS}
         actions = {a: bots[a].act(obs[a]) for a in AGENT_IDS}
-        assert all(obs[a]["action_mask"][v.index] for a, v in actions.items())
+        assert all(obs[a]["auxiliary"]["action_mask"][v.index] for a, v in actions.items())
         if env.step(actions).terminated:
             break
 

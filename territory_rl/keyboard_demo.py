@@ -58,7 +58,8 @@ class KeyboardDemo:
         """현재 선택·수동 모드에 맞는 ID별 컨트롤러 사전을 만든다.
         키보드 인스턴스는 재사용하고 scripted 컨트롤러는 지정 시드로 새로 생성한다.
         """
-        bots = {aid: FrontierController(self.seed+i, "aggressive" if i >= 3 else "expand") for i, aid in enumerate(AGENT_IDS)}
+        bots = {aid: FrontierController(self.seed+i, "aggressive" if i >= 3 else "expand", self.env.experiment.tile_encoding)
+                for i, aid in enumerate(AGENT_IDS)}
         return {aid: self.keyboards[aid] if self.manual_all or aid == self.selected else bots[aid] for aid in AGENT_IDS}
 
     def _write_reset(self):
@@ -67,7 +68,8 @@ class KeyboardDemo:
         """
         if self.log:
             self.log.write(json.dumps({"type": "reset", "seed": self.seed, "game": asdict(self.env.config),
-                                       "experiment": asdict(self.env.experiment)}) + "\n")
+                                       "experiment": asdict(self.env.experiment),
+                                       "observation_rotation": self.env.observation_rotation}) + "\n")
             self.log.flush()
 
     def on_key(self, event):
@@ -92,7 +94,8 @@ class KeyboardDemo:
             self.selected = AGENT_IDS[(AGENT_IDS.index(previous)+1) % 6] if key == "tab" else AGENT_IDS[int(key)-1]
             if not self.manual_all:
                 self.keyboards[previous].clear()
-                self.manager.controllers[previous] = FrontierController(self.seed+AGENT_IDS.index(previous))
+                self.manager.controllers[previous] = FrontierController(
+                    self.seed+AGENT_IDS.index(previous), tile_encoding=self.env.experiment.tile_encoding)
                 self.manager.controllers[self.selected] = self.keyboards[self.selected]
         else:
             self.keyboards[self.selected].feed_key(key)
@@ -170,20 +173,21 @@ class KeyboardDemo:
         전역 맵을 보여 주는 디버그 화면이며 에이전트 관측 범위와는 다르다. 게임 틱은 진행하지 않는다.
         """
         snapshot = self.env.snapshot()
-        self.renderer.draw(snapshot, self.selected)
+        self.renderer.draw(snapshot, self.selected, self.env.observation_rotation)
         pending = self.keyboards[self.selected].pending
         mode = "FINISHED" if snapshot.terminated else ("RUNNING" if self.running else "PAUSED")
         team, number = self.selected.rsplit("_", 1)
         observation = self.env.observe(team, int(number))
-        visible = [Action(int(c)).name if c else "?" for c in observation["team_action_codes"]]
+        visible = [Action(int(c)).name if c else "?" for c in observation["team_actions"]]
+        auxiliary = observation["auxiliary"]
         stage = f"Strategy: {self.env.decision_strategy} / round {self.env.decision_round or 1}"
         next_aid = self.env.next_decision_agent or (AGENT_IDS[0] if not self.env.terminated else "finished")
         mask = self.env.experiment.resolved_reward_mask
-        decision_info = f"\n{stage}\nReward mask (area/gap/end): {''.join(map(str, mask))}\nNext: {next_aid}\n{observation['action_source']}:\n{' / '.join(visible)}"
+        decision_info = f"\n{stage}\nRotation: {self.env.observation_rotation * 90} deg CW\nReward mask (area/gap/end): {''.join(map(str, mask))}\nNext: {next_aid}\n{auxiliary['action_source']}:\n{' / '.join(visible)}"
         self.status.config(text=f"{mode}   Tick {snapshot.tick}/{snapshot.max_ticks}\nRED {snapshot.areas[0]}   BLUE {snapshot.areas[1]}\nSelected: {self.selected}\nQueued: {pending.name if pending is not None else 'NOOP (default)'}\nMode: {'all manual' if self.manual_all else 'selected human + 5 bots'}" + decision_info)
         lines = []
         for index, a in enumerate(snapshot.agents):
-            state = str(a.position) if a.alive else f"dead; due {a.respawn_at}"
+            state = str(a.position) if a.alive else f"dead at {a.position}; due {a.respawn_at}"
             ready = bool(self.env.action_mask(a.agent_id)[5:].any())
             queued = self.keyboards[a.agent_id].pending
             short_actions = ("wait", "up", "down", "left", "right", "atkU", "atkD", "atkL", "atkR")

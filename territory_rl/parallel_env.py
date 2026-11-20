@@ -6,7 +6,7 @@ from .models import AGENT_IDS, Action
 
 
 class TerritoryParallelEnv(ParallelEnv):
-    metadata = {"name": "territory_v1", "render_modes": ["human", "rgb_array"], "render_fps": 5,
+    metadata = {"name": "territory_control", "render_modes": ["human", "rgb_array"], "render_fps": 5,
                 "is_parallelizable": True}
 
     def __init__(self, config=None, experiment=None, render_mode=None):
@@ -21,25 +21,30 @@ class TerritoryParallelEnv(ParallelEnv):
         self.render_mode = render_mode
         self._renderer = None
         cfg = self.core.config
+        experiment = self.core.experiment
+        encoding = experiment.tile_encoding
         import string
         self._observation_spaces = {aid: spaces.Dict({
-            "owner": spaces.Box(-1, 1, (cfg.height, cfg.width), np.int8),
-            "agent_positions": spaces.Box(-1, max(cfg.height, cfg.width)-1, (6, 2), np.int32),
-            "agent_teams": spaces.MultiBinary(6), "agent_alive": spaces.MultiBinary(6),
-            "agent_attack_ready": spaces.MultiBinary(6),
-            "agent_respawn_wait": spaces.Box(0, np.iinfo(np.int32).max, (6,), np.int32),
-            "self_index": spaces.Discrete(3), "self_team": spaces.Discrete(1, start=1),
-            "tick": spaces.Discrete(cfg.max_ticks+1),
-            "max_ticks": spaces.Discrete(1, start=cfg.max_ticks),
-            "remaining_ticks": spaces.Discrete(cfg.max_ticks+1),
-            "areas": spaces.Box(0, cfg.height*cfg.width, (2,), np.int32),
-            "decision_strategy": spaces.Text(32, charset=string.ascii_lowercase+"_"),
-            "decision_round": spaces.Discrete(3),
-            "action_source": spaces.Text(32, charset=string.ascii_lowercase+"_"),
-            "team_action_codes": spaces.Box(0, 9, (3,), np.int8),
-            "team_actions_known": spaces.MultiBinary(3),
-            "team_action_features": spaces.Box(0, 1, (3, 9), np.float32),
-            "action_mask": spaces.MultiBinary(9)}) for aid in AGENT_IDS}
+            "tilemap": spaces.Box(min(encoding.values), max(encoding.values),
+                                  (experiment.observation_window_size, experiment.observation_window_size), np.int8),
+            "team_actions": spaces.Box(0, 9, (3,), np.int8),
+            "auxiliary": spaces.Dict({
+                "agent_teams": spaces.MultiBinary(6), "agent_alive": spaces.MultiBinary(6),
+                "agent_attack_ready": spaces.MultiBinary(6),
+                "agent_respawn_wait": spaces.Box(0, np.iinfo(np.int32).max, (6,), np.int32),
+                "self_index": spaces.Discrete(3), "self_team": spaces.Discrete(1, start=1),
+                "tick": spaces.Discrete(cfg.max_ticks+1),
+                "max_ticks": spaces.Discrete(1, start=cfg.max_ticks),
+                "remaining_ticks": spaces.Discrete(cfg.max_ticks+1),
+                "areas": spaces.Box(0, cfg.height*cfg.width, (2,), np.int32),
+                "decision_strategy": spaces.Text(32, charset=string.ascii_lowercase+"_"),
+                "decision_round": spaces.Discrete(3),
+                "action_source": spaces.Text(32, charset=string.ascii_lowercase+"_"),
+                "team_actions_known": spaces.MultiBinary(3),
+                "team_action_features": spaces.Box(0, 1, (3, 9), np.float32),
+                "action_mask": spaces.MultiBinary(9),
+            }),
+        }) for aid in AGENT_IDS}
         self._action_spaces = {aid: spaces.Discrete(9) for aid in AGENT_IDS}
         self.state_space = spaces.Box(-np.inf, np.inf, (self.core.config.height*self.core.config.width + 6*8 + 1,), np.float32)
         self.last_result = None
@@ -49,7 +54,7 @@ class TerritoryParallelEnv(ParallelEnv):
         return self._observation_spaces[agent]
 
     def action_space(self, agent):
-        """agent의 고정 행동 공간 Discrete(9)를 반환한다. 틱별 제약은 관측의 action_mask에 둔다."""
+        """관측 방향 Discrete(9)를 반환한다. 틱별 제약은 auxiliary.action_mask에 둔다."""
         return self._action_spaces[agent]
 
     def reset(self, seed=None, options=None):
@@ -59,7 +64,8 @@ class TerritoryParallelEnv(ParallelEnv):
         여섯 ID를 활성 목록에 복구하고 마지막 결과를 비운다. options의 시나리오 키만
         코어에 전달하며 외부 wrapper가 넘긴 그 밖의 옵션은 무시한다.
         """
-        scenario = {k: v for k, v in (options or {}).items() if k in ("owner", "agents", "tick", "decision_strategy", "reward_signal_mask")}
+        scenario = {k: v for k, v in (options or {}).items() if k in (
+            "owner", "agents", "tick", "decision_strategy", "reward_signal_mask", "observation_rotation")}
         self.core.reset(seed, scenario)
         self.agents = self.possible_agents.copy()
         self.last_result = None
@@ -68,7 +74,8 @@ class TerritoryParallelEnv(ParallelEnv):
     def step(self, actions):
         """여섯 ID의 행동을 한 틱 처리해 관측·보상·termination·truncation·info를 반환한다.
 
-        입력은 Discrete(9)의 인덱스 0..8이며 실행 코드 1..9로 변환한다. key 누락은 오류다. 사망 대기자는 목록에 남기고
+        입력은 관측 방향 Discrete(9)의 인덱스 0..8이며 실제 맵 방향 코드 1..9로 변환한다.
+        key 누락은 오류다. 사망 대기자는 목록에 남기고
         정지 행동으로 진행하며, 경기 종료의 마지막 관측과 보상도 여섯 명 모두에게 반환한다.
         마지막 반환을 준비한 뒤 agents를 비운다. 자체적인 외부 truncation은 만들지 않는다.
         """
@@ -78,7 +85,7 @@ class TerritoryParallelEnv(ParallelEnv):
             raise ValueError("Parallel API requires one action for each of the six agents")
         if self.core.decision_strategy != "independent":
             raise RuntimeError("sequential/feedback requires begin_decision/agent_session/finish_decision_round")
-        result = self.core.step({aid: Action.from_index(value) for aid, value in actions.items()})
+        result = self.core.step({aid: self.core.action_to_world(Action.from_index(value)) for aid, value in actions.items()})
         return self._result(result)
 
     def _observe(self, aid):
@@ -117,12 +124,12 @@ class TerritoryParallelEnv(ParallelEnv):
 
     def state(self):
         """전체 소유권, ID순 에이전트 상태, 현재 틱을 하나의 float32 벡터로 반환한다.
-        전역 정보이므로 에이전트별 제한 관측과 구별해야 한다. 사망 좌표/없는 부활 시각은 -1이다.
+        좌표는 사망 중에도 유지된다. 없는 부활 시각은 -1이다.
         """
         s = self.core.snapshot()
         features = []
         for a in s.agents:
-            features.extend([*(a.position or (-1, -1)), int(a.alive), a.last_attack_tick,
+            features.extend([*a.position, int(a.alive), a.last_attack_tick,
                              -1 if a.respawn_at is None else a.respawn_at, a.team, int(a.last_action), int(a.action_valid)])
         return np.concatenate([s.owner.ravel(), features, [s.tick]]).astype(np.float32)
 
@@ -132,11 +139,11 @@ class TerritoryParallelEnv(ParallelEnv):
         """
         from .visualization import render_rgb, TkRenderer
         if self.render_mode == "rgb_array":
-            return render_rgb(self.core.snapshot())
+            return np.rot90(render_rgb(self.core.snapshot()), -self.core.observation_rotation).copy()
         if self.render_mode == "human":
             if self._renderer is None:
                 self._renderer = TkRenderer()
-            self._renderer.draw(self.core.snapshot())
+            self._renderer.draw(self.core.snapshot(), rotation=self.core.observation_rotation)
             self._renderer.root.update()
 
     def close(self):

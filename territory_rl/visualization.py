@@ -37,22 +37,27 @@ class TkRenderer:
         self.canvas = tk.Canvas(self.root, bg="#121826", highlightthickness=0)
         self.canvas.pack(side="left", padx=14, pady=14)
 
-    def draw(self, snapshot, selected=None):
+    def draw(self, snapshot, selected=None, rotation=0):
         """스냅샷의 타일과 생존 에이전트를 Canvas에 다시 그린다.
         selected ID는 흰 테두리로 강조한다. 화면만 갱신하며 행동 제출이나 게임 전이는 수행하지 않는다.
         """
         size = self.tile_size
-        h, w = snapshot.owner.shape
+        owner = np.rot90(snapshot.owner, -rotation)
+        h, w = owner.shape
         self.canvas.configure(width=w*size, height=h*size)
         self.canvas.delete("all")
         for r in range(h):
             for c in range(w):
-                color = "#%02x%02x%02x" % TEAM_COLORS[snapshot.owner[r, c]]
+                color = "#%02x%02x%02x" % TEAM_COLORS[owner[r, c]]
                 self.canvas.create_rectangle(c*size, r*size, (c+1)*size, (r+1)*size,
                                              fill=color, outline="#1a2232")
         for a in snapshot.agents:
             if a.alive:
                 r, c = a.position
+                height, width = snapshot.owner.shape
+                for _ in range(rotation):
+                    r, c = c, height - 1 - r
+                    height, width = width, height
                 color = "#%02x%02x%02x" % AGENT_COLORS[a.team]
                 self.canvas.create_oval(c*size+5, r*size+5, (c+1)*size-5, (r+1)*size-5,
                                         fill=color, outline="#ffffff" if a.agent_id == selected else "#243044",

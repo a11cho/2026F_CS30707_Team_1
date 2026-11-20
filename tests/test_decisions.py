@@ -72,22 +72,22 @@ def test_sequential_visibility_and_normalized_noop():
     env.begin_decision()
     first = session(env, "red_0")
     initial = first.observe()
-    assert initial["team_action_codes"].tolist() == [0, 0, 0]
+    assert initial["team_actions"].tolist() == [0, 0, 0]
     with pytest.raises(ValueError, match="order"):
         session(env, "red_1").submit_action(Action.NOOP)
     first.submit_action(Action.UP)  # red_0 is at row 0: normalize to NOOP.
     second = session(env, "red_1").observe()
-    assert second["team_action_codes"].tolist() == [1, 0, 0]
-    assert second["team_actions_known"].tolist() == [1, 0, 0]
-    assert second["team_action_features"][0].tolist() == [1, 0, 0, 0, 0, 0, 0, 0, 0]
-    assert initial["team_action_codes"].tolist() == [0, 0, 0]
+    assert second["team_actions"].tolist() == [1, 0, 0]
+    assert second["auxiliary"]["team_actions_known"].tolist() == [1, 0, 0]
+    assert second["auxiliary"]["team_action_features"][0].tolist() == [1, 0, 0, 0, 0, 0, 0, 0, 0]
+    assert initial["team_actions"].tolist() == [0, 0, 0]
     session(env, "red_1").submit_action(Action.ATTACK_RIGHT)
     third = session(env, "red_2").observe()
-    assert third["team_action_codes"].tolist() == [1, 9, 0]
-    assert not env.observe("blue", 0)["team_actions_known"].any()
+    assert third["team_actions"].tolist() == [1, 9, 0]
+    assert not env.observe("blue", 0)["auxiliary"]["team_actions_known"].any()
     result = env.finish_decision_round()  # Missing decisions are filled with NOOP.
     assert any(e.kind == "rejected" and e.requested == 2 and e.applied == 1 for e in result.events)
-    assert not env.observe("red", 1)["team_actions_known"].any()
+    assert not env.observe("red", 1)["auxiliary"]["team_actions_known"].any()
 
 
 def test_feedback_freezes_first_proposals_and_executes_only_final_actions():
@@ -97,7 +97,7 @@ def test_feedback_freezes_first_proposals_and_executes_only_final_actions():
     env.begin_decision()
     stale = session(env, "red_0")
     stale.submit_action(Action.ATTACK_RIGHT)
-    assert not env.observe("red", 1)["team_actions_known"].any()
+    assert not env.observe("red", 1)["auxiliary"]["team_actions_known"].any()
     for aid in AGENT_IDS[1:]:
         session(env, aid).submit_action(Action.NOOP)
     assert env.finish_decision_round() is None
@@ -108,11 +108,11 @@ def test_feedback_freezes_first_proposals_and_executes_only_final_actions():
     with pytest.raises(RuntimeError):
         stale.submit_action(Action.NOOP)
     frozen = env.observe("red", 1)
-    assert frozen["team_action_codes"].tolist() == [9, 1, 1]
-    assert frozen["team_actions_known"].tolist() == [1, 1, 1]
-    assert frozen["action_source"] == "first_pass_proposal"
+    assert frozen["team_actions"].tolist() == [9, 1, 1]
+    assert frozen["auxiliary"]["team_actions_known"].tolist() == [1, 1, 1]
+    assert frozen["auxiliary"]["action_source"] == "first_pass_proposal"
     session(env, "red_0").submit_action(Action.NOOP)
-    np.testing.assert_array_equal(env.observe("red", 1)["team_action_codes"], frozen["team_action_codes"])
+    np.testing.assert_array_equal(env.observe("red", 1)["team_actions"], frozen["team_actions"])
     with pytest.raises(ValueError):
         session(env, "red_0").submit_action(Action.NOOP)
     result = env.finish_decision_round()
@@ -120,7 +120,7 @@ def test_feedback_freezes_first_proposals_and_executes_only_final_actions():
     assert sum(result.rewards.values()) == 0
     assert agent(env, "red_0").last_attack_tick == before.agents[0].last_attack_tick
     assert len(env.last_decision) == 2
-    assert env.decision_round == 0 and not env.observe("red", 0)["team_action_codes"].any()
+    assert env.decision_round == 0 and not env.observe("red", 0)["team_actions"].any()
 
 
 def test_feedback_final_submission_order_does_not_change_observations_or_transition():
@@ -131,10 +131,10 @@ def test_feedback_final_submission_order_does_not_change_observations_or_transit
         env.begin_decision()
         submit_round(env)
         env.finish_decision_round()
-        expected = env.observe("red", 0)["team_action_codes"].copy()
+        expected = env.observe("red", 0)["team_actions"].copy()
         for aid in order:
             session(env, aid).submit_action(Action.RIGHT if aid == "red_0" else Action.NOOP)
-            np.testing.assert_array_equal(env.observe("red", 0)["team_action_codes"], expected)
+            np.testing.assert_array_equal(env.observe("red", 0)["team_actions"], expected)
         results.append(env.finish_decision_round().to_dict())
     assert results[0] == results[1]
     assert envs[0].snapshot().agents == envs[1].snapshot().agents
@@ -155,7 +155,7 @@ def test_reset_clears_rounds_and_strategy_can_only_change_at_reset():
         env.begin_decision()
     env.reset(4, {"decision_strategy": "sequential"})
     assert env.decision_strategy == "sequential" and env.decision_round == 0
-    assert not env.observe("red", 0)["team_actions_known"].any()
+    assert not env.observe("red", 0)["auxiliary"]["team_actions_known"].any()
     with pytest.raises(RuntimeError):
         stale.observe()
 
@@ -217,7 +217,7 @@ def test_elimination_and_time_limit_both_reported_by_adapter():
                     owner=np.zeros((6, 6)), ticks=1, delay=0)
     snapshot = core.snapshot()
     from territory_rl.agent import AgentState
-    states = [AgentState(a.agent_id, a.team, a.position, respawn_at=a.respawn_at) for a in snapshot.agents]
+    states = [AgentState(a.agent_id, a.team, a.position, respawn_at=a.respawn_at, alive=a.alive) for a in snapshot.agents]
     env = TerritoryParallelEnv(core.config)
     env.reset(123, {"owner": snapshot.owner, "agents": states})
     actions = dict.fromkeys(AGENT_IDS, Action.NOOP.index)
@@ -233,17 +233,14 @@ def test_cli_trace_roundtrip_and_config_overrides(strategy, tmp_path, capsys):
     """실제 CLI를 짧게 실행해 설정 override·회차 로그·재생 일치를 검증한다."""
     path = tmp_path / "trace.jsonl"
     main(["--mode", "headless", "--ticks", "5", "--height", "6", "--width", "10",
-          "--respawn-delay", "1", "--strategy", strategy, "--reward", "individual", "--log", str(path)])
+          "--respawn-delay", "1", "--strategy", strategy, "--reward", "individual",
+          "--observation-window-size", "19", "--log", str(path)])
     records = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
     assert records[0]["game"]["width"] == 10 and records[0]["game"]["respawn_delay"] == 1
     assert records[0]["experiment"]["decision_strategy"] == strategy
     assert len(records[1]["decision"]) == (2 if strategy == "feedback" else 1)
     replay(path)
     assert '"verified": true' in capsys.readouterr().out
-    records[0]["game"]["rules_version"] = "territory_v0"
-    path.write_text("\n".join(json.dumps(r) for r in records), encoding="utf-8")
-    with pytest.raises(ValueError, match="version"):
-        replay(path)
 
 
 def test_cli_defaults_come_from_config(tmp_path, capsys):

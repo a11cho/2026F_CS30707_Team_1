@@ -18,6 +18,7 @@ class ActionCollector:
         self.round = 0
         self._actions = {}
         self._requested = {}
+        self._observation_requested = {}
         self._proposals = {}
         self._history = []
 
@@ -58,15 +59,17 @@ class ActionCollector:
         return AgentSession(self, aid, self._token)
 
     def submit(self, aid, action, token):
-        """한 회차에 한 번 검증·정규화하여 저장한다. 순차 전략은 ID 순서를 강제한다."""
+        """관측 방향 행동을 실제 맵 방향으로 변환해 검증·저장한다. 순차는 ID 순서를 강제한다."""
         self._check(token)
         if aid in self._actions:
             raise ValueError("one submission per agent per round")
         if self.environment.decision_strategy == "sequential" and aid != self.next_agent:
             raise ValueError("submit in AGENT_IDS order for sequential decisions")
-        requested = Action.parse(action)
+        observed = Action.parse(action)
+        requested = self.environment.action_to_world(observed)
         applied = requested if self.environment.action_mask(aid)[requested.index] else Action.NOOP
         self._requested[aid], self._actions[aid] = requested, applied
+        self._observation_requested[aid] = observed
 
     def context(self, aid):
         """관측자에게 공개 가능한 같은 틱 행동의 복사본을 반환한다. 적 행동은 제외한다."""
@@ -96,11 +99,13 @@ class ActionCollector:
             if aid not in self._actions:
                 self.submit(aid, Action.NOOP, self._token)
         self._history.append({"round": self.round,
+                              "observation_requested": {a: int(v) for a, v in self._observation_requested.items()},
                               "requested": {a: int(v) for a, v in self._requested.items()},
                               "applied": {a: int(v) for a, v in self._actions.items()}})
         if self.environment.decision_strategy == "feedback" and self.round == 1:
             self._proposals = self._actions.copy()
             self._actions, self._requested = {}, {}
+            self._observation_requested = {}
             self.round = 2
             self._set_token()
             return None
@@ -122,10 +127,11 @@ class AgentSession:
     def available_actions(self):
         """마스크를 실행 코드로 변환한다. 사망자는 사용자 선택 가능한 행동이 없다."""
         obs = self.observe()
-        if not obs["agent_alive"][obs["self_index"]]:
+        auxiliary = obs["auxiliary"]
+        if not auxiliary["agent_alive"][auxiliary["self_index"]]:
             return ()
-        return tuple(Action.from_index(i) for i in np.flatnonzero(obs["action_mask"]))
+        return tuple(Action.from_index(i) for i in np.flatnonzero(auxiliary["action_mask"]))
 
     def submit_action(self, action):
-        """현재 회차의 행동을 한 번 제출한다. 관측한 1차 제안과 최종 행동은 구분된다."""
+        """현재 회차에 관측 방향 행동을 한 번 제출한다. 1차 제안과 최종 행동은 구분된다."""
         self._collector.submit(self.agent_id, action, self._token)

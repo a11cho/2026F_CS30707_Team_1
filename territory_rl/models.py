@@ -64,16 +64,12 @@ class Action(IntEnum):
 class AgentSnapshot:
     agent_id: str
     team: int
-    position: Position | None
+    position: Position
     last_attack_tick: int
     respawn_at: int | None
     last_action: Action
     action_valid: bool
-
-    @property
-    def alive(self):
-        """스냅샷의 좌표 존재 여부로 생존 상태를 반환한다."""
-        return self.position is not None
+    alive: bool = True
 
 
 @dataclass(frozen=True)

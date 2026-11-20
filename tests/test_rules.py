@@ -18,14 +18,16 @@ def scenario(positions=None, owner=None, delay=2, ticks=20, experiment=None, tic
         owner[:, 3:] = 1
     else:
         owner = owner.copy()
-    base = dict(zip(AGENT_IDS, [(0, 0), (1, 0), (2, 0), (0, 5), (1, 5), (2, 5)]))
+    defaults = dict(zip(AGENT_IDS, [(0, 0), (1, 0), (2, 0), (0, 5), (1, 5), (2, 5)]))
+    base = defaults.copy()
     base.update(positions or {})
     agents = []
     for i, aid in enumerate(AGENT_IDS):
         p = base[aid]
         if p is not None:
             owner[p] = i//3
-        agents.append(AgentState(aid, i//3, p, respawn_at=0 if p is None else None))
+        agents.append(AgentState(aid, i//3, defaults[aid] if p is None else p,
+                                 respawn_at=0 if p is None else None, alive=p is not None))
     env = TerritoryEnvironment(cfg, experiment)
     env.reset(123, {"owner": owner, "agents": agents, "tick": tick})
     return env

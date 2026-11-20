@@ -1,5 +1,39 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
+
+
+@dataclass(frozen=True)
+class TileEncoding:
+    """관측 타일 값의 단일 정의. 에이전트 값은 팀 내 번호 0..2 순서다."""
+
+    outside: int = 0
+    friendly: int = 1
+    enemy: int = -1
+    friendly_agents: tuple[int, int, int] = (2, 3, 4)
+    enemy_agents: tuple[int, int, int] = (-2, -3, -4)
+
+    def __post_init__(self):
+        for name in ("friendly_agents", "enemy_agents"):
+            codes = getattr(self, name)
+            if not isinstance(codes, (tuple, list)) or len(codes) != 3:
+                raise ValueError(f"{name} must contain three tile values")
+            object.__setattr__(self, name, tuple(codes))
+        if any(type(value) is not int or not -128 <= value <= 127 for value in self.values):
+            raise ValueError("tile values must be int8 integers")
+        if len(set(self.values)) != len(self.values):
+            raise ValueError("tile values must be distinct")
+
+    @property
+    def values(self):
+        return (self.outside, self.friendly, self.enemy, *self.friendly_agents, *self.enemy_agents)
+
+    @property
+    def friendly_tiles(self):
+        return (self.friendly, *self.friendly_agents)
+
+    @property
+    def enemy_tiles(self):
+        return (self.enemy, *self.enemy_agents)
 
 
 @dataclass(frozen=True)
@@ -9,7 +43,6 @@ class GameConfig:
     max_ticks: int = 128
     respawn_delay: int = 0
     initial_placement: str = "frontier"
-    rules_version: str = "territory_v1"
 
     def __post_init__(self):
         """맵·시간·부활 설정을 검증한다. 딜레이 0은 사망 틱 후반 부활이다."""
@@ -22,8 +55,6 @@ class GameConfig:
             raise ValueError("max_ticks must be positive; respawn_delay >= 0")
         if self.initial_placement not in ("frontier", "random"):
             raise ValueError("initial_placement must be frontier or random")
-        if self.rules_version != "territory_v1":
-            raise ValueError("unsupported rules_version; v0 action logs require migration")
 
 
 @dataclass(frozen=True)
@@ -39,9 +70,20 @@ class ExperimentConfig:
     include_terminal_reward: bool = False
     gap_weight: float = 1.0
     reward_signal_mask: tuple[int, int, int] | None = None
+    observation_window_size: int = 15
+    randomize_observation_rotation: bool = False
+    tile_encoding: TileEncoding = field(default_factory=TileEncoding)
 
     def __post_init__(self):
         """전략과 보상을 독립적으로 검증한다. 실행 기본값은 실험 결과나 확정 계수를 뜻하지 않는다."""
+        if type(self.observation_window_size) is not int or self.observation_window_size < 1 or self.observation_window_size % 2 != 1:
+            raise ValueError("observation_window_size must be a positive odd integer")
+        if type(self.randomize_observation_rotation) is not bool:
+            raise ValueError("randomize_observation_rotation must be a bool")
+        if isinstance(self.tile_encoding, dict):
+            object.__setattr__(self, "tile_encoding", TileEncoding(**self.tile_encoding))
+        if not isinstance(self.tile_encoding, TileEncoding):
+            raise ValueError("tile_encoding must be a TileEncoding or its JSON object")
         if self.decision_strategy not in ("independent", "sequential", "feedback"):
             raise ValueError("unknown decision_strategy")
         if self.reward_mode not in ("individual", "team"):

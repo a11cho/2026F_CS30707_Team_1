@@ -20,10 +20,8 @@ def replay(path):
     for line in Path(path).read_text(encoding="utf-8").splitlines():
         item = json.loads(line)
         if item["type"] == "reset":
-            if item["game"].get("rules_version") != "territory_v1":
-                raise ValueError("unsupported trace version; v0 uses different action codes")
             env = TerritoryEnvironment(GameConfig(**item["game"]), ExperimentConfig(**item["experiment"]))
-            env.reset(item["seed"])
+            env.reset(item["seed"], {"observation_rotation": item["observation_rotation"]})
         elif item["type"] == "step":
             if env is None:
                 raise ValueError("trace is missing its reset record")
@@ -39,7 +37,7 @@ def replay(path):
                         raise ValueError("invalid decision trace")
                     for aid in AGENT_IDS:
                         team, number = aid.rsplit("_", 1)
-                        env.agent_session(team, int(number)).submit_action(entry["requested"][aid])
+                        env.agent_session(team, int(number)).submit_action(entry["observation_requested"][aid])
                     result = env.finish_decision_round()
                 if env.last_decision != rounds or item["actions"] != rounds[-1]["requested"]:
                     raise ValueError("decision trace mismatch")
@@ -70,6 +68,9 @@ def main(argv=None):
     parser.add_argument("--ticks", type=int, default=defaults.max_ticks)
     parser.add_argument("--respawn-delay", type=int, default=defaults.respawn_delay)
     parser.add_argument("--seed", type=int, default=7)
+    parser.add_argument("--observation-window-size", type=int, default=exp_defaults.observation_window_size)
+    parser.add_argument("--randomize-observation-rotation", action="store_true",
+                        help="use one shared random 0/90/180/270-degree observation rotation per episode")
     parser.add_argument("--strategy", choices=["independent", "sequential", "feedback"], default=exp_defaults.decision_strategy)
     parser.add_argument("--reward", choices=["individual", "team"], default="team")
     parser.add_argument("--team-signal", choices=["area", "gap", "terminal"], default=exp_defaults.team_signal)
@@ -101,6 +102,8 @@ def main(argv=None):
                                   area_weight=args.area_weight, gap_weight=args.gap_weight,
                                   reward_signal_mask=args.reward_mask, win_reward=args.win_reward,
                                   loss_reward=args.loss_reward, draw_reward=args.draw_reward,
+                                  observation_window_size=args.observation_window_size,
+                                  randomize_observation_rotation=args.randomize_observation_rotation,
                                   include_terminal_reward=args.include_terminal_reward)
     if args.mode == "keyboard":
         from .keyboard_demo import KeyboardDemo
@@ -114,12 +117,13 @@ def main(argv=None):
         for episode in range(args.episodes):
             seed = args.seed + episode
             controllers = {aid: (RandomController(seed+i) if args.opponent == "random" else
-                                  FrontierController(seed+i, args.opponent)) for i, aid in enumerate(AGENT_IDS)}
+                                  FrontierController(seed+i, args.opponent, experiment.tile_encoding)) for i, aid in enumerate(AGENT_IDS)}
             manager = EpisodeManager(TerritoryEnvironment(config, experiment), controllers)
             manager.reset(seed)
             if stream:
                 stream.write(json.dumps({"type": "reset", "seed": seed, "game": asdict(config),
-                                         "experiment": asdict(experiment)}) + "\n")
+                                         "experiment": asdict(experiment),
+                                         "observation_rotation": manager.environment.observation_rotation}) + "\n")
             start = time.perf_counter()
             while not manager.environment.terminated:
                 result = manager.step()
