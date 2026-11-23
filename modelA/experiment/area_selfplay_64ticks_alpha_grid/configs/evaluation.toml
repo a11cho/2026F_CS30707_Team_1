@@ -1,0 +1,11 @@
+# 64틱 실험 전용 설정입니다. α와 시드는 명령행에서 덮어쓸 수 있습니다.
+
+[evaluation]
+seed = 20261120
+deterministic = true
+mirror_to_training_side = true
+
+[evaluation.opponents]
+expand = 40
+random = 40
+defend = 40

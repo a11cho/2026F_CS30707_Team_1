@@ -1,0 +1,86 @@
+{
+  "experiment": "area_selfplay_64ticks_alpha_grid",
+  "reference_run": "A-S_alpha1_seed7_20261117T220020783922Z",
+  "changed_training_parameters": {
+    "game.max_ticks": [
+      128,
+      64
+    ]
+  },
+  "alphas": [
+    0.5,
+    1,
+    2
+  ],
+  "seeds": [
+    7,
+    19,
+    31
+  ],
+  "jobs": [
+    {
+      "condition": "A-S",
+      "alpha": 0.5,
+      "seed": 7,
+      "episodes": 3200,
+      "max_ticks": 64
+    },
+    {
+      "condition": "A-S",
+      "alpha": 0.5,
+      "seed": 19,
+      "episodes": 3200,
+      "max_ticks": 64
+    },
+    {
+      "condition": "A-S",
+      "alpha": 0.5,
+      "seed": 31,
+      "episodes": 3200,
+      "max_ticks": 64
+    },
+    {
+      "condition": "A-S",
+      "alpha": 1,
+      "seed": 7,
+      "episodes": 3200,
+      "max_ticks": 64
+    },
+    {
+      "condition": "A-S",
+      "alpha": 1,
+      "seed": 19,
+      "episodes": 3200,
+      "max_ticks": 64
+    },
+    {
+      "condition": "A-S",
+      "alpha": 1,
+      "seed": 31,
+      "episodes": 3200,
+      "max_ticks": 64
+    },
+    {
+      "condition": "A-S",
+      "alpha": 2,
+      "seed": 7,
+      "episodes": 3200,
+      "max_ticks": 64
+    },
+    {
+      "condition": "A-S",
+      "alpha": 2,
+      "seed": 19,
+      "episodes": 3200,
+      "max_ticks": 64
+    },
+    {
+      "condition": "A-S",
+      "alpha": 2,
+      "seed": 31,
+      "episodes": 3200,
+      "max_ticks": 64
+    }
+  ],
+  "training_started": false
+}

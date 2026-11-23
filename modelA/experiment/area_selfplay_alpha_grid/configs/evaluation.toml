@@ -1,0 +1,10 @@
+[evaluation]
+seed = 20261120
+deterministic = true
+mirror_to_training_side = true
+
+# 정책 하나당 양 진영을 합한 경기 수입니다.
+[evaluation.opponents]
+expand = 80
+random = 80
+defend = 80
