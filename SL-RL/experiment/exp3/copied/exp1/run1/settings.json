@@ -1,0 +1,54 @@
+{
+  "size": 1,
+  "seed": 7,
+  "config": {
+    "game": {
+      "height": 3,
+      "width": 10,
+      "max_ticks": 64,
+      "respawn_delay": 0
+    },
+    "ssl": {
+      "seed": 8101,
+      "latent": 16,
+      "hidden": 64,
+      "episodes": 160,
+      "frames_per_episode": 12,
+      "validation_fraction": 0.2,
+      "mask_fraction": 0.3,
+      "epochs": 30,
+      "batch_size": 64,
+      "learning_rate": 0.001
+    },
+    "ppo": {
+      "hidden": 128,
+      "entity_hidden": 32,
+      "updates": 400,
+      "episodes_per_update": 8,
+      "epochs": 4,
+      "batch_size": 256,
+      "learning_rate": 0.0003,
+      "gamma": 0.99,
+      "gae_lambda": 0.95,
+      "clip": 0.2,
+      "entropy": 0.01,
+      "value_weight": 0.5,
+      "max_grad_norm": 0.5,
+      "checkpoint_every": 5,
+      "alpha": 1.0
+    },
+    "evaluation": {
+      "seed": 20261120,
+      "games": 40,
+      "opponents": [
+        "random",
+        "expand",
+        "aggressive",
+        "defend",
+        "noop"
+      ]
+    }
+  },
+  "encoder": "pretrain\\1v1\\fit1\\encoder.pt",
+  "requested_updates": 400
+}

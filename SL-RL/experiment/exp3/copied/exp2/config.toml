@@ -1,0 +1,46 @@
+# 마스킹 없는 AE와 원본 지도 PPO 비교. 일괄 실행기는 두 입력 방식을 각각 실행합니다.
+representation = "ae"
+
+[game]
+height = 3
+width = 10
+max_ticks = 64
+respawn_delay = 0
+
+[ssl]
+seed = 8101
+latent = 16
+hidden = 64
+episodes = 160
+frames_per_episode = 12
+validation_fraction = 0.2
+mask_fraction = 0.0
+epochs = 30
+batch_size = 64
+learning_rate = 0.001
+
+[ppo]
+hidden = 128
+entity_hidden = 32
+updates = 400
+episodes_per_update = 8
+epochs = 4
+batch_size = 256
+learning_rate = 0.0003
+gamma = 0.99
+gae_lambda = 0.95
+clip = 0.2
+entropy = 0.01
+value_weight = 0.5
+max_grad_norm = 0.5
+checkpoint_every = 20
+alpha = 1.0
+
+[evaluation]
+seed = 20261120
+games = 40
+opponents = ["random", "expand", "aggressive", "defend", "noop"]
+
+[online_validation]
+# 각 학습 정책·고정 상대에 대한 양 진영 합계. 세 시작 행을 한 번씩 짝지어 비교합니다.
+games = 6

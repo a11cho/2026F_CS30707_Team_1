@@ -1,0 +1,1003 @@
+{
+  "game": {
+    "model": "run5/update_0400.pt",
+    "size": 3,
+    "train_seed": 19,
+    "trained_team": "red",
+    "opponent": "noop",
+    "opponent_team": "",
+    "field": "red",
+    "seed": 1102019303,
+    "ticks": 9,
+    "win": 1,
+    "draw": 0,
+    "loss": 0,
+    "final_gap": 30,
+    "per_agent_return": 12.0,
+    "mean_area_share": 0.7777777777777778
+  },
+  "frames": [
+    {
+      "tick": 0,
+      "owner": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "agents": [
+        {
+          "id": "red_0",
+          "position": [
+            0,
+            4
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_1",
+          "position": [
+            1,
+            4
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_2",
+          "position": [
+            2,
+            4
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_0",
+          "position": [
+            0,
+            5
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_1",
+          "position": [
+            1,
+            5
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_2",
+          "position": [
+            2,
+            5
+          ],
+          "alive": true
+        }
+      ]
+    },
+    {
+      "tick": 1,
+      "owner": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "agents": [
+        {
+          "id": "red_0",
+          "position": [
+            0,
+            4
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_1",
+          "position": [
+            1,
+            4
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_2",
+          "position": [
+            2,
+            4
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_0",
+          "position": [
+            2,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_1",
+          "position": [
+            0,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_2",
+          "position": [
+            1,
+            7
+          ],
+          "alive": true
+        }
+      ],
+      "actions": {
+        "red_0": 9,
+        "red_1": 9,
+        "red_2": 9,
+        "blue_0": 1,
+        "blue_1": 1,
+        "blue_2": 1
+      }
+    },
+    {
+      "tick": 2,
+      "owner": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1,
+          1
+        ]
+      ],
+      "agents": [
+        {
+          "id": "red_0",
+          "position": [
+            0,
+            5
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_1",
+          "position": [
+            1,
+            5
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_2",
+          "position": [
+            2,
+            5
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_0",
+          "position": [
+            2,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_1",
+          "position": [
+            0,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_2",
+          "position": [
+            1,
+            7
+          ],
+          "alive": true
+        }
+      ],
+      "actions": {
+        "red_0": 5,
+        "red_1": 5,
+        "red_2": 5,
+        "blue_0": 1,
+        "blue_1": 1,
+        "blue_2": 1
+      }
+    },
+    {
+      "tick": 3,
+      "owner": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1
+        ]
+      ],
+      "agents": [
+        {
+          "id": "red_0",
+          "position": [
+            0,
+            5
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_1",
+          "position": [
+            1,
+            5
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_2",
+          "position": [
+            2,
+            5
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_0",
+          "position": [
+            2,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_1",
+          "position": [
+            0,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_2",
+          "position": [
+            1,
+            7
+          ],
+          "alive": true
+        }
+      ],
+      "actions": {
+        "red_0": 9,
+        "red_1": 9,
+        "red_2": 9,
+        "blue_0": 1,
+        "blue_1": 1,
+        "blue_2": 1
+      }
+    },
+    {
+      "tick": 4,
+      "owner": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1,
+          1
+        ]
+      ],
+      "agents": [
+        {
+          "id": "red_0",
+          "position": [
+            0,
+            6
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_1",
+          "position": [
+            1,
+            6
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_2",
+          "position": [
+            2,
+            6
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_0",
+          "position": [
+            2,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_1",
+          "position": [
+            0,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_2",
+          "position": [
+            1,
+            7
+          ],
+          "alive": true
+        }
+      ],
+      "actions": {
+        "red_0": 5,
+        "red_1": 5,
+        "red_2": 5,
+        "blue_0": 1,
+        "blue_1": 1,
+        "blue_2": 1
+      }
+    },
+    {
+      "tick": 5,
+      "owner": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ]
+      ],
+      "agents": [
+        {
+          "id": "red_0",
+          "position": [
+            0,
+            6
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_1",
+          "position": [
+            1,
+            6
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_2",
+          "position": [
+            2,
+            6
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_0",
+          "position": [
+            2,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_1",
+          "position": [
+            0,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_2",
+          "position": [
+            1,
+            9
+          ],
+          "alive": true
+        }
+      ],
+      "actions": {
+        "red_0": 9,
+        "red_1": 9,
+        "red_2": 9,
+        "blue_0": 1,
+        "blue_1": 1,
+        "blue_2": 1
+      }
+    },
+    {
+      "tick": 6,
+      "owner": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ]
+      ],
+      "agents": [
+        {
+          "id": "red_0",
+          "position": [
+            0,
+            7
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_1",
+          "position": [
+            1,
+            7
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_2",
+          "position": [
+            2,
+            7
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_0",
+          "position": [
+            2,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_1",
+          "position": [
+            0,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_2",
+          "position": [
+            1,
+            9
+          ],
+          "alive": true
+        }
+      ],
+      "actions": {
+        "red_0": 5,
+        "red_1": 5,
+        "red_2": 5,
+        "blue_0": 1,
+        "blue_1": 1,
+        "blue_2": 1
+      }
+    },
+    {
+      "tick": 7,
+      "owner": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ]
+      ],
+      "agents": [
+        {
+          "id": "red_0",
+          "position": [
+            0,
+            7
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_1",
+          "position": [
+            1,
+            7
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_2",
+          "position": [
+            2,
+            7
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_0",
+          "position": [
+            2,
+            9
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_1",
+          "position": [
+            0,
+            9
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_2",
+          "position": [
+            1,
+            9
+          ],
+          "alive": true
+        }
+      ],
+      "actions": {
+        "red_0": 9,
+        "red_1": 9,
+        "red_2": 9,
+        "blue_0": 1,
+        "blue_1": 1,
+        "blue_2": 1
+      }
+    },
+    {
+      "tick": 8,
+      "owner": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ]
+      ],
+      "agents": [
+        {
+          "id": "red_0",
+          "position": [
+            0,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_1",
+          "position": [
+            1,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_2",
+          "position": [
+            2,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_0",
+          "position": [
+            2,
+            9
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_1",
+          "position": [
+            0,
+            9
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_2",
+          "position": [
+            1,
+            9
+          ],
+          "alive": true
+        }
+      ],
+      "actions": {
+        "red_0": 5,
+        "red_1": 5,
+        "red_2": 5,
+        "blue_0": 1,
+        "blue_1": 1,
+        "blue_2": 1
+      }
+    },
+    {
+      "tick": 9,
+      "owner": [
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      ],
+      "agents": [
+        {
+          "id": "red_0",
+          "position": [
+            0,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_1",
+          "position": [
+            1,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "red_2",
+          "position": [
+            2,
+            8
+          ],
+          "alive": true
+        },
+        {
+          "id": "blue_0",
+          "position": [
+            2,
+            9
+          ],
+          "alive": false
+        },
+        {
+          "id": "blue_1",
+          "position": [
+            0,
+            9
+          ],
+          "alive": false
+        },
+        {
+          "id": "blue_2",
+          "position": [
+            1,
+            9
+          ],
+          "alive": false
+        }
+      ],
+      "actions": {
+        "red_0": 9,
+        "red_1": 9,
+        "red_2": 9,
+        "blue_0": 1,
+        "blue_1": 1,
+        "blue_2": 1
+      }
+    }
+  ]
+}

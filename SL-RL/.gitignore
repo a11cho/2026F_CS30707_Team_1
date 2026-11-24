@@ -1,0 +1,6 @@
+__pycache__/
+experiment/*/run[0-9]*/
+experiment/*/pretrain/
+experiment/*/comparison/
+.sanity*/
+experiment/*/.batch/

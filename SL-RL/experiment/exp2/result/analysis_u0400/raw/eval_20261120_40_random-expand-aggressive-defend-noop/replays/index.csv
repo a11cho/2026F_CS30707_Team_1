@@ -1,0 +1,12 @@
+﻿file,candidates,source,model,size,train_seed,trained_team,opponent,opponent_team,field,seed,ticks,win,draw,loss,final_gap,per_agent_return,mean_area_share,forward_action_fraction
+1v1_vs_random.gif,240,..\..\..\..\..\run8\evaluation\eval1\games.csv,run8/update_0400.pt,1,19,red,random,,red,2440316317,47,1,0,0,30,47.96666666666666,0.8432624113475176,0.8865248226950354
+1v1_vs_expand.gif,240,..\..\..\..\..\run9\evaluation\eval1\games.csv,run9/update_0400.pt,1,7,red,expand,,red,1733107648,64,1,0,0,4,53.03333333333336,0.5578125000000003,0.9114583333333334
+1v1_vs_aggressive.gif,240,..\..\..\..\..\run9\evaluation\eval1\games.csv,run9/update_0400.pt,1,7,red,aggressive,,blue,3628320875,64,1,0,0,6,49.20000000000001,0.48229166666666673,0.9479166666666666
+1v1_vs_defend.gif,240,..\..\..\..\..\run8\evaluation\eval1\games.csv,run8/update_0400.pt,1,19,red,defend,,red,377361450,29,1,0,0,30,30.666666666666668,0.8505747126436781,0.7816091954022989
+1v1_vs_noop.gif,240,..\..\..\..\..\run8\evaluation\eval1\games.csv,run8/update_0400.pt,1,19,red,noop,,red,1102019303,11,1,0,0,30,13.933333333333332,0.8121212121212121,0.9090909090909091
+3v3_vs_random.gif,240,..\..\..\..\..\run11\evaluation\eval1\games.csv,run11/update_0400.pt,3,19,blue,random,,blue,1472986870,61,1,0,0,30,60.9666666666667,0.7754098360655742,0.7486338797814208
+3v3_vs_expand.gif,240,..\..\..\..\..\run11\evaluation\eval1\games.csv,run11/update_0400.pt,3,19,blue,expand,,red,2440316317,64,1,0,0,6,50.76666666666665,0.5067708333333332,0.9895833333333334
+3v3_vs_aggressive.gif,240,..\..\..\..\..\run12\evaluation\eval1\games.csv,run12/update_0400.pt,3,7,blue,aggressive,,red,3278227648,64,1,0,0,8,47.93333333333334,0.46250000000000013,0.984375
+3v3_vs_defend.gif,240,..\..\..\..\..\run12\evaluation\eval1\games.csv,run12/update_0400.pt,3,7,blue,defend,,blue,2600415627,64,1,0,0,26,68.03333333333332,0.8494791666666662,0.640625
+3v3_vs_noop.gif,240,..\..\..\..\..\run11\evaluation\eval1\games.csv,run11/update_0400.pt,3,19,red,noop,,red,1102019303,62,1,0,0,30,60.83333333333326,0.900537634408601,0.3655913978494624
+duel.gif,480,..\..\..\..\..\comparison\eval4\games.csv,run7/update_0400.pt,1,31,red,run10/update_0400.pt,red,blue,3085747070,64,1,0,0,18,50.53333333333327,0.7062499999999993,0.9583333333333334
