@@ -443,7 +443,7 @@ def territory_frame(match):
 
 
 def evaluate(policy, game, *, pairs, opponents, seed, force_entry, inference_batch, measure_tactics=False,
-             record_timeline=False, sample_seed=None):
+             record_timeline=False, sample_seed=None, action_selector=evaluation_actions):
     start = perf_counter()
     fixtures = [TeamMatch(game, seed + offset, team, opponent, force_entry=force_entry, track_scenes=True)
                 for opponent in opponents for offset in range(pairs) for team in TEAMS]
@@ -460,7 +460,7 @@ def evaluate(policy, game, *, pairs, opponents, seed, force_entry, inference_bat
                          "initial_areas": match.state.areas, "ticks": []} for match in fixtures}
                 if record_timeline else None)
     while active:
-        actions = evaluation_actions(policy, active, inference_batch, generators)
+        actions = action_selector(policy, active, inference_batch, generators)
         for match, joint in zip(active, actions, strict=True):
             state = match.state
             match.step(joint)
@@ -475,7 +475,7 @@ def evaluate(policy, game, *, pairs, opponents, seed, force_entry, inference_bat
     if sample_seed is None and min(game.height, game.width) >= 6:
         scenarios = [TeamMatch(game, seed, team, "aggressive", force_entry=entry, track_scenes=True,
                                scenario=entry_scenario(game, team)) for entry in (True, False) for team in TEAMS]
-        for match, joint in zip(scenarios, evaluation_actions(policy, scenarios, inference_batch), strict=True):
+        for match, joint in zip(scenarios, action_selector(policy, scenarios, inference_batch), strict=True):
             match.step(joint)
             fixed.append({**match_result(match), "force_entry": match.force_entry,
                           "capture_entry": summarize_scenes(match.scenes.counts)["capture_entry"]})
@@ -495,7 +495,8 @@ def evaluate(policy, game, *, pairs, opponents, seed, force_entry, inference_bat
     return report
 
 
-def evaluate_exercises(policy, game, pairs, force_entry, inference_batch, *, trace_actions=False):
+def evaluate_exercises(policy, game, pairs, force_entry, inference_batch, *, trace_actions=False,
+                       action_selector=evaluation_actions):
     lessons = []
     for kind in EXERCISE_ERRORS:
         for seed in range(650000, 650000 + pairs):
@@ -504,7 +505,7 @@ def evaluate_exercises(policy, game, pairs, force_entry, inference_batch, *, tra
                 lessons.append(TeamMatch(replace(game, max_ticks=EXERCISE_TICKS), seed, team, "search_intermediate",
                                          force_entry=force_entry, exercise=exercise))
     cases = []
-    for match, joint in zip(lessons, evaluation_actions(policy, lessons, inference_batch), strict=True):
+    for match, joint in zip(lessons, action_selector(policy, lessons, inference_batch), strict=True):
         state = match.state
         start = match.env.core.snapshot() if trace_actions else None
         match.step(joint)
