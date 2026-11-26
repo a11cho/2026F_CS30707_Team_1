@@ -155,6 +155,7 @@ def train(game, experiment, cfg, output, *, canvas_shape=None):
     optimizer = torch.optim.Adam(parameters, lr=cfg.learning_rate, eps=1e-5)
     rng = np.random.default_rng(cfg.seed)
     matches = [FeedbackMatch(game, experiment) for _ in range(cfg.num_envs)]
+    experiment = matches[0].env.core.experiment
 
     def reset_match(match, team):
         match.reset(int(rng.integers(0, 2**32)), team, str(rng.choice(cfg.opponents)))

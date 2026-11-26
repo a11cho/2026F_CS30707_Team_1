@@ -10,10 +10,10 @@ import numpy as np
 import torch
 
 from territory_rl.agent import AgentState
-from territory_rl.config import ExperimentConfig, GameConfig
+from territory_rl.config import ExperimentConfig
 from territory_rl.models import AGENT_IDS, Action
 
-from .policy import action_masks, encode_proposals, encode_states, policy_from_checkpoint
+from .policy import action_masks, encode_proposals, encode_states, game_config_from_metadata, policy_from_checkpoint
 from .rollout import FeedbackMatch, collect_tick, current_states
 
 
@@ -42,7 +42,7 @@ class FixedAction:
     action: Action
 
     def act(self, observation):
-        if not observation["action_mask"][self.action.index]:
+        if not observation["auxiliary"]["action_mask"][self.action.index]:
             raise RuntimeError("scenario opponent was assigned a masked action")
         return self.action
 
@@ -98,7 +98,8 @@ def prepare(scenario, game, experiment, seed):
     match.reset(seed, scenario.team, "random", options={"owner": owner, "agents": agents, "tick": scenario.tick})
     match.bots = dict.fromkeys(opponent_ids, FixedAction(Action.NOOP))
     if cover:
-        match.bots[opponent_ids[0]] = FixedAction(Action.ATTACK_RIGHT if own else Action.ATTACK_LEFT)
+        attack = Action.ATTACK_RIGHT if own else Action.ATTACK_LEFT
+        match.bots[opponent_ids[0]] = FixedAction(match.env.core.action_to_observation(attack))
     return PreparedScenario(match, orient(target), starts, protected)
 
 
@@ -251,7 +252,7 @@ def main():
 
     torch.set_num_threads(1)
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
-    game = GameConfig(**checkpoint["game"])
+    game = game_config_from_metadata(checkpoint["game"])
     experiment = ExperimentConfig(**checkpoint["experiment"])
     if experiment.decision_strategy != "feedback" or checkpoint["training"]["hide_teammates"]:
         parser.error("provide a feedback PPO checkpoint trained with teammate messages enabled")

@@ -17,7 +17,8 @@ def scenario(red, blue, *, changed=None):
     owner[:, 4:] = 1
     for cell, team in (changed or {}).items():
         owner[cell] = team
-    agents = [AgentState(aid, slot // 3, position, respawn_at=128 if position is None else None)
+    agents = [AgentState(aid, slot // 3, (0, 0) if position is None else position,
+                         alive=position is not None, respawn_at=128 if position is None else None)
               for slot, (aid, position) in enumerate(zip(AGENT_IDS, red + blue, strict=True))]
     env.reset(seed=7, options={"owner": owner, "agents": agents})
     return env, SceneTracker()

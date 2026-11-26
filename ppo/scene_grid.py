@@ -11,6 +11,7 @@ import subprocess
 import sys
 
 from .cooperation_scenes import SCENES, summarize_scenes
+from .policy import game_config_from_metadata
 
 
 MODELS = {
@@ -44,8 +45,11 @@ def read_json(path):
 
 
 def verify(report, old, case):
-    for key in ("checkpoint", "seed", "update", "evaluation_game", "training_game", "pairs_per_opponent"):
+    for key in ("checkpoint", "seed", "update", "pairs_per_opponent"):
         if report[key] != old[key]:
+            raise ValueError(f"{case.filename}: {key} differs from the reference")
+    for key in ("evaluation_game", "training_game"):
+        if game_config_from_metadata(report[key]) != game_config_from_metadata(old[key]):
             raise ValueError(f"{case.filename}: {key} differs from the reference")
     if report["training_seed"] != case.seed:
         raise ValueError(f"{case.filename}: training seed differs from the reference")

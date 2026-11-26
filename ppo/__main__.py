@@ -9,7 +9,7 @@ import torch
 from territory_rl.config import ExperimentConfig, GameConfig
 
 from .evaluation import evaluate
-from .policy import policy_from_checkpoint
+from .policy import game_config_from_metadata, policy_from_checkpoint
 from .rollout import OPPONENTS
 from .sender import SenderActionPredictor
 from .trainer import TrainingConfig, train
@@ -43,6 +43,10 @@ def parse_args():
     training.add_argument("--eval-every", type=positive_int, default=defaults.eval_every)
     training.add_argument("--validation-pairs", type=positive_int, default=defaults.validation_pairs)
     training.add_argument("--reward", choices=("team", "individual"), default="team")
+    training.add_argument("--team-signal", choices=("area", "gap", "terminal"), default="terminal")
+    training.add_argument("--reward-mask", nargs=3, type=int, choices=(0, 1), metavar=("AREA", "GAP", "TERMINAL"),
+                          help="explicit reward terms, overriding --team-signal")
+    training.add_argument("--gap-weight", type=nonnegative_float, default=ExperimentConfig().gap_weight)
     training.add_argument("--opponents", nargs="+", choices=OPPONENTS, default=defaults.opponents)
     training.add_argument("--hide-teammates", action="store_true")
     training.add_argument("--map-size", type=positive_int, nargs=2, metavar=("HEIGHT", "WIDTH"), default=(8, 8))
@@ -83,7 +87,8 @@ def main():
             backpropagate_messages=args.backpropagate_messages,
         )
         experiment = ExperimentConfig(decision_strategy="feedback", reward_mode=args.reward,
-                                      team_signal="terminal", loss_reward=-1.0)
+                                      team_signal=args.team_signal, reward_signal_mask=args.reward_mask,
+                                      gap_weight=args.gap_weight, loss_reward=-1.0)
         game = GameConfig(height=args.map_size[0], width=args.map_size[1])
         if args.no_respawn:
             game = replace(game, respawn_delay=game.max_ticks)
@@ -92,7 +97,7 @@ def main():
         return
 
     checkpoint = torch.load(args.checkpoint, map_location="cpu", weights_only=True)
-    training_game = GameConfig(**checkpoint["game"])
+    training_game = game_config_from_metadata(checkpoint["game"])
     game = training_game
     if args.map_size:
         game = replace(game, height=args.map_size[0], width=args.map_size[1])

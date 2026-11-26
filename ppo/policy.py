@@ -6,6 +6,8 @@ from torch import Tensor, nn
 from torch.distributions import Categorical
 from torch.nn import functional as F
 
+from territory_rl.config import GameConfig
+
 
 class StateBatch(NamedTuple):
     board: Tensor
@@ -13,7 +15,7 @@ class StateBatch(NamedTuple):
 
 
 def encode_states(observations):
-    """Encode the public v1 observation in the requesting team's slot order."""
+    """Encode the policy-facing board and state in the requesting team's slot order."""
     owner = np.stack([obs["owner"] for obs in observations])
     batch_size, height, width = owner.shape
     board = np.zeros((batch_size, 8, height, width), dtype=np.float32)
@@ -98,3 +100,11 @@ def policy_from_checkpoint(checkpoint):
     policy = CommunicationPolicy(*canvas)
     policy.load_state_dict(checkpoint["model"])
     return policy.eval()
+
+
+def game_config_from_metadata(metadata):
+    """Load settings from current and legacy PPO checkpoint or evaluation metadata."""
+    fields = dict(metadata)
+    # Older checkpoints recorded the environment name as a game setting.
+    fields.pop("rules_version", None)
+    return GameConfig(**fields)
