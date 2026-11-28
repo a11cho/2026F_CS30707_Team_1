@@ -1,0 +1,16 @@
+# 기존 raw 3대3 PPO의 최종 가중치를 시드별로 불러옵니다.
+[baseline]
+update = 400
+runs = { "7" = "run12", "19" = "run11", "31" = "run10" }
+
+[imitation]
+# 매 경기 양 팀에 서로 다른 교사를 배치하고 다음 경기에서 진영을 바꿉니다.
+train_games = 160
+validation_games = 32
+epochs = 24
+batch_size = 256
+learning_rate = 0.0003
+
+[evaluation]
+seed = 20261120
+games = 40

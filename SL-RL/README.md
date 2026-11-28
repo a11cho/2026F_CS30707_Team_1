@@ -138,3 +138,16 @@ python -B SL-RL/analysis.py replays --experiment exp1
 리플레이의 ‘좋은 경기’는 **승리 → 무승부 → 패배** 순이며, 같은 결과에서는 최종 점령 격차, 에이전트당 누적 보상 순으로 고릅니다. 모두 같으면 먼저 기록된 후보를 택합니다. 고정 상대에서는 각 학습 조건의 관점, 맞대결에서는 1vs1 복제 팀 관점입니다. 기본 exp1의 GIF는 11개입니다. 이 영상은 가장 잘한 사례이고, 일반적인 실력은 전체 경기 승률로 판단합니다.
 
 명령·평가 탐색은 `analysis.py`, 그래프·표·보고서는 `analysis_plots.py`, 대표 경기 선정·재현·영상 저장은 `analysis_replays.py`에서 관리합니다.
+
+
+## 전체 틱 기록과 협력 지표
+
+저장소 루트에서 실행합니다. 예시는 exp2의 시드 7 raw 3대3 정책입니다.
+
+```text
+python -B SL-RL/run.py evaluate --experiment exp2 --run run12 --checkpoint update_0400.pt --opponents expand --games 40 --trace-all
+```
+
+evaluate와 duel의 --trace-all은 새 평가 폴더의 traces/에 경기당 JSON 하나와 cooperation.csv를 생성합니다. run의 evaluation/eval번호 또는 실험의 comparison/eval번호에서 확인합니다. --replay는 기존처럼 대표 경기만 경량 형식으로 저장합니다.
+
+frames[0]은 시작 상태이고 이후 각 프레임은 해당 전이의 요청·적용 행동(실제 맵 방향), 정책 보상, 점령 기여, 이벤트와 판정 후 상태입니다. 행동 직전 상태는 이전 프레임입니다. owner의 0/1은 빨강/파랑입니다. cooperation.csv는 경기·실제 진영당 한 행이며 is_model로 평가 대상 팀을 구분합니다. shared_target_rate는 공격한 틱·목표 칸 중 아군 2명 이상이 공격한 비율, joint_capture_rate는 점령한 칸 중 공동 점령 비율입니다. 분모 0은 빈 값입니다. 여러 경기의 전체 비율은 분자·분모를 각각 합산합니다. 공동 공격에는 불필요한 중복도 포함되므로 승률·점령 격차·사망·이동 실패와 함께 해석합니다.

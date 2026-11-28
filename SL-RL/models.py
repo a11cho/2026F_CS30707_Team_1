@@ -22,8 +22,21 @@ class TeamPolicy(nn.Module):
         e, h = config["entity_hidden"], config["hidden"]
         self.entity = nn.Sequential(nn.Linear(6, e), nn.Tanh())
         width = latent + 6 + e + 1
-        self.actor = nn.Sequential(nn.Linear(width, h), nn.Tanh(), nn.Linear(h, len(Action)))
-        self.critic = nn.Sequential(nn.Linear(width, h), nn.Tanh(), nn.Linear(h, 1))
+        layers = config.get("hidden_layers", [h])
+        if not layers or any(type(n) is not int or n < 1 for n in layers):
+            raise ValueError("은닉층 폭은 양의 정수로 지정하세요.")
+
+        def head(outputs):
+            modules = []
+            previous = width
+            for units in layers:
+                modules.extend([nn.Linear(previous, units), nn.Tanh()])
+                previous = units
+            modules.append(nn.Linear(previous, outputs))
+            return nn.Sequential(*modules)
+
+        self.actor = head(len(Action))
+        self.critic = head(1)
 
     def forward(self, latent, own, entities, mask):
         # 1vs1에서도 값이 있는 전체 개체 수 하나를 사용합니다.

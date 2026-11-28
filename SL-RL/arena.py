@@ -132,6 +132,7 @@ class Arena:
 
     def step(self, actions, alpha):
         result = self.env.step(actions)
+        self.last_result = result
         credits = result.credits if self.size == 3 else result
         self.state = self.env.snapshot()
         return {a.agent_id: self.state.areas[a.team] / self.state.owner.size + alpha * credits[a.agent_id]

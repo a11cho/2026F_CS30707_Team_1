@@ -48,6 +48,7 @@ def main():
         if name in ("evaluate","duel"):
             sub.add_argument("--games", type=int)
             sub.add_argument("--checkpoint", default="latest.pt")
+            sub.add_argument("--trace-all", action="store_true", help="모든 평가 경기의 전체 틱과 팀별 협력 집계 저장")
             sub.add_argument("--replay", action="store_true")
         if name == "evaluate":
             sub.add_argument("--opponents", nargs="+")
@@ -110,7 +111,7 @@ def main():
             parser.error("체크포인트 파일명을 확인하세요.")
         evaluate(path, cfg, a.run, a.checkpoint, getattr(a,"versus",None),
                  cfg["evaluation"]["games"] if a.games is None else a.games,
-                 getattr(a,"opponents",None) or cfg["evaluation"]["opponents"], a.replay)
+                 getattr(a,"opponents",None) or cfg["evaluation"]["opponents"], a.replay, trace_all=a.trace_all)
 
 
 if __name__ == "__main__":
