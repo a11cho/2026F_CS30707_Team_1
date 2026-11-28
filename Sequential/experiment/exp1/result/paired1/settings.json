@@ -1,0 +1,8 @@
+{
+  "pairs": 1,
+  "seeds": [
+    7
+  ],
+  "checkpoint": "latest.pt",
+  "evaluation_seed": 20261120
+}
