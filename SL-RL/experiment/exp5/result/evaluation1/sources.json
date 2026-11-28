@@ -1,0 +1,152 @@
+{
+  "evaluation": {
+    "seed": 246853,
+    "games": 40
+  },
+  "runs": [
+    {
+      "run": "run1",
+      "seed": 7,
+      "architecture": "[128]",
+      "stage": "before",
+      "checkpoint": "pretrained.pt",
+      "evaluation": "run1/evaluation/eval1"
+    },
+    {
+      "run": "run1",
+      "seed": 7,
+      "architecture": "[128]",
+      "stage": "after",
+      "checkpoint": "best.pt",
+      "evaluation": "run1/evaluation/eval2"
+    },
+    {
+      "run": "run2",
+      "seed": 7,
+      "architecture": "[64, 64]",
+      "stage": "before",
+      "checkpoint": "pretrained.pt",
+      "evaluation": "run2/evaluation/eval1"
+    },
+    {
+      "run": "run2",
+      "seed": 7,
+      "architecture": "[64, 64]",
+      "stage": "after",
+      "checkpoint": "best.pt",
+      "evaluation": "run2/evaluation/eval2"
+    },
+    {
+      "run": "run3",
+      "seed": 7,
+      "architecture": "[128, 128]",
+      "stage": "before",
+      "checkpoint": "pretrained.pt",
+      "evaluation": "run3/evaluation/eval1"
+    },
+    {
+      "run": "run3",
+      "seed": 7,
+      "architecture": "[128, 128]",
+      "stage": "after",
+      "checkpoint": "best.pt",
+      "evaluation": "run3/evaluation/eval2"
+    },
+    {
+      "run": "run4",
+      "seed": 19,
+      "architecture": "[128]",
+      "stage": "before",
+      "checkpoint": "pretrained.pt",
+      "evaluation": "run4/evaluation/eval1"
+    },
+    {
+      "run": "run4",
+      "seed": 19,
+      "architecture": "[128]",
+      "stage": "after",
+      "checkpoint": "best.pt",
+      "evaluation": "run4/evaluation/eval2"
+    },
+    {
+      "run": "run5",
+      "seed": 19,
+      "architecture": "[64, 64]",
+      "stage": "before",
+      "checkpoint": "pretrained.pt",
+      "evaluation": "run5/evaluation/eval1"
+    },
+    {
+      "run": "run5",
+      "seed": 19,
+      "architecture": "[64, 64]",
+      "stage": "after",
+      "checkpoint": "best.pt",
+      "evaluation": "run5/evaluation/eval2"
+    },
+    {
+      "run": "run6",
+      "seed": 19,
+      "architecture": "[128, 128]",
+      "stage": "before",
+      "checkpoint": "pretrained.pt",
+      "evaluation": "run6/evaluation/eval1"
+    },
+    {
+      "run": "run6",
+      "seed": 19,
+      "architecture": "[128, 128]",
+      "stage": "after",
+      "checkpoint": "best.pt",
+      "evaluation": "run6/evaluation/eval2"
+    },
+    {
+      "run": "run7",
+      "seed": 31,
+      "architecture": "[128]",
+      "stage": "before",
+      "checkpoint": "pretrained.pt",
+      "evaluation": "run7/evaluation/eval1"
+    },
+    {
+      "run": "run7",
+      "seed": 31,
+      "architecture": "[128]",
+      "stage": "after",
+      "checkpoint": "best.pt",
+      "evaluation": "run7/evaluation/eval2"
+    },
+    {
+      "run": "run8",
+      "seed": 31,
+      "architecture": "[64, 64]",
+      "stage": "before",
+      "checkpoint": "pretrained.pt",
+      "evaluation": "run8/evaluation/eval1"
+    },
+    {
+      "run": "run8",
+      "seed": 31,
+      "architecture": "[64, 64]",
+      "stage": "after",
+      "checkpoint": "best.pt",
+      "evaluation": "run8/evaluation/eval2"
+    },
+    {
+      "run": "run9",
+      "seed": 31,
+      "architecture": "[128, 128]",
+      "stage": "before",
+      "checkpoint": "pretrained.pt",
+      "evaluation": "run9/evaluation/eval1"
+    },
+    {
+      "run": "run9",
+      "seed": 31,
+      "architecture": "[128, 128]",
+      "stage": "after",
+      "checkpoint": "best.pt",
+      "evaluation": "run9/evaluation/eval2"
+    }
+  ]
+}

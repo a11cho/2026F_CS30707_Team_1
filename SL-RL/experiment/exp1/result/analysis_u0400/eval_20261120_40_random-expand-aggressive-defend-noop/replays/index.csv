@@ -1,0 +1,12 @@
+﻿file,candidates,source,model,size,train_seed,trained_team,opponent,opponent_team,field,seed,ticks,win,draw,loss,final_gap,per_agent_return,mean_area_share,forward_action_fraction
+1v1_vs_random.gif,240,..\..\..\..\run2\evaluation\eval1\games.csv,run2/update_0400.pt,1,19,blue,random,,red,4073450354,55,1,0,0,30,55.79999999999998,0.8084848484848485,0.896969696969697
+1v1_vs_expand.gif,240,..\..\..\..\run1\evaluation\eval1\games.csv,run1/update_0400.pt,1,7,blue,expand,,red,1677973706,64,1,0,0,2,52.30000000000002,0.5255208333333333,0.9895833333333334
+1v1_vs_aggressive.gif,240,..\..\..\..\run1\evaluation\eval1\games.csv,run1/update_0400.pt,1,7,red,aggressive,,red,37868921,64,0,1,0,0,48.93333333333333,0.4729166666666664,1.0
+1v1_vs_defend.gif,240,..\..\..\..\run2\evaluation\eval1\games.csv,run2/update_0400.pt,1,19,blue,defend,,blue,1667211328,64,1,0,0,26,64.69999999999995,0.8755208333333325,0.859375
+1v1_vs_noop.gif,240,..\..\..\..\run1\evaluation\eval1\games.csv,run1/update_0400.pt,1,7,blue,noop,,red,1102019303,9,1,0,0,30,12.0,0.7777777777777778,1.0
+3v3_vs_random.gif,240,..\..\..\..\run4\evaluation\eval1\games.csv,run4/update_0400.pt,3,7,red,random,,blue,3085747070,51,1,0,0,30,47.266666666666644,0.737254901960784,0.8169934640522876
+3v3_vs_expand.gif,240,..\..\..\..\run4\evaluation\eval1\games.csv,run4/update_0400.pt,3,7,blue,expand,,blue,2440316317,64,1,0,0,6,49.59999999999997,0.46770833333333345,0.984375
+3v3_vs_aggressive.gif,240,..\..\..\..\run6\evaluation\eval1\games.csv,run6/update_0400.pt,3,31,blue,aggressive,,red,3085747070,64,1,0,0,4,54.400000000000034,0.5687500000000003,0.9895833333333334
+3v3_vs_defend.gif,240,..\..\..\..\run5\evaluation\eval1\games.csv,run5/update_0400.pt,3,19,blue,defend,,red,2440316317,44,1,0,0,30,39.999999999999986,0.7499999999999997,0.7045454545454546
+3v3_vs_noop.gif,240,..\..\..\..\run5\evaluation\eval1\games.csv,run5/update_0400.pt,3,19,blue,noop,,blue,37868921,15,1,0,0,30,16.700000000000003,0.7799999999999999,0.7777777777777778
+duel.gif,480,..\..\..\..\comparison\eval3\games.csv,run3/update_0400.pt,1,31,blue,run6/update_0400.pt,red,red,1733107648,64,1,0,0,24,60.49999999999995,0.8359374999999992,0.359375

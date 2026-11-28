@@ -1,0 +1,44 @@
+{
+  "evaluation": {
+    "seed": 20261120,
+    "games": 40
+  },
+  "checkpoints": [
+    {
+      "run": "run1",
+      "seed": 7,
+      "stage": "before",
+      "path": "run1/evaluation/eval1"
+    },
+    {
+      "run": "run1",
+      "seed": 7,
+      "stage": "after",
+      "path": "run1/evaluation/eval2"
+    },
+    {
+      "run": "run2",
+      "seed": 19,
+      "stage": "before",
+      "path": "run2/evaluation/eval1"
+    },
+    {
+      "run": "run2",
+      "seed": 19,
+      "stage": "after",
+      "path": "run2/evaluation/eval2"
+    },
+    {
+      "run": "run3",
+      "seed": 31,
+      "stage": "before",
+      "path": "run3/evaluation/eval1"
+    },
+    {
+      "run": "run3",
+      "seed": 31,
+      "stage": "after",
+      "path": "run3/evaluation/eval2"
+    }
+  ]
+}

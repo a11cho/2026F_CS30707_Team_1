@@ -1,0 +1,5 @@
+﻿model,size,train_seed,trained_team,opponent,opponent_team,games,wins,draws,losses,final_gap,per_agent_return,mean_area_share,win_rate
+run1/update_0400.pt,1,7,red,run4/update_0400.pt,red,40,19,5,16,0.9,38.683333333333344,0.5108072916666668,0.475
+run1/update_0400.pt,1,7,red,run4/update_0400.pt,blue,40,17,5,18,0.35,45.348333333333336,0.5196354166666667,0.425
+run1/update_0400.pt,1,7,blue,run4/update_0400.pt,red,40,23,2,15,1.45,39.528333333333336,0.523359375,0.575
+run1/update_0400.pt,1,7,blue,run4/update_0400.pt,blue,40,18,6,16,1.2,45.67583333333334,0.5289192708333335,0.45

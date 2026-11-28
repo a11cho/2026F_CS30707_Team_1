@@ -1,0 +1,18 @@
+{
+  "model": "run4/update_0400.pt",
+  "model_training_size": 3,
+  "model_seed": 7,
+  "update": 400,
+  "evaluation_seed": 20261120,
+  "games_per_pair": 40,
+  "opponents": [
+    "random",
+    "expand",
+    "aggressive",
+    "defend",
+    "noop"
+  ],
+  "other_seed": null,
+  "evaluation_size": 3,
+  "greedy": true
+}

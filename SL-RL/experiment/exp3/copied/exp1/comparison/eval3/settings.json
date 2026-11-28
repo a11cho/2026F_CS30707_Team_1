@@ -1,0 +1,14 @@
+{
+  "model": "run3/update_0400.pt",
+  "model_training_size": 1,
+  "model_seed": 31,
+  "update": 400,
+  "evaluation_seed": 20261120,
+  "games_per_pair": 40,
+  "opponents": [
+    "run6/update_0400.pt"
+  ],
+  "other_seed": 31,
+  "evaluation_size": 3,
+  "greedy": true
+}
